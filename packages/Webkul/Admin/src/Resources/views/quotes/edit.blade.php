@@ -1,662 +1,797 @@
-@extends('admin::layouts.master')
+<x-admin::layouts>
+    <x-slot:title>
+        @lang('admin::app.quotes.edit.title')
+    </x-slot>
 
-@section('page_title')
-    {{ __('admin::app.quotes.edit-title') }}
-@stop
+    {!! view_render_event('admin.contacts.quotes.edit.form_controls.before', ['quote' => $quote]) !!}
 
-@section('content-wrapper')
-    <div class="content full-page adjacent-center">
-        {!! view_render_event('admin.quotes.edit.header.before', ['quote' => $quote]) !!}
+    <x-admin::form
+        :action="route('admin.quotes.update', $quote->id)"
+        method="PUT"
+    >
+        <div class="flex flex-col gap-4">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                <div class="flex flex-col gap-2">
+                    <x-admin::breadcrumbs
+                        name="quotes.edit"
+                        :entity="$quote"
+                    />
 
-        <div class="page-header">
-
-            {{ Breadcrumbs::render('quotes.edit', $quote) }}
-
-            <div class="page-title">
-                <h1>{{ __('admin::app.quotes.edit-title') }}</h1>
-            </div>
-        </div>
-
-        {!! view_render_event('admin.quotes.edit.header.after', ['quote' => $quote]) !!}
-
-        <form method="POST" action="{{ route('admin.quotes.update', $quote->id) }}" @submit.prevent="onSubmit" enctype="multipart/form-data">
-
-            <div class="page-content">
-                <div class="form-container">
-
-                    <div class="panel">
-                        <div class="panel-header">
-                            {!! view_render_event('admin.quotes.edit.form_buttons.before', ['quote' => $quote]) !!}
-
-                            <button type="submit" class="btn btn-md btn-primary">
-                                {{ __('admin::app.quotes.save-btn-title') }}
-                            </button>
-
-                            <a href="{{ route('admin.quotes.index') }}">{{ __('admin::app.quotes.back') }}</a>
-
-                            {!! view_render_event('admin.quotes.edit.form_buttons.after', ['quote' => $quote]) !!}
-                        </div>
-
-                        <div class="panel-body">
-                            {!! view_render_event('admin.quotes.edit.form_controls.before', ['quote' => $quote]) !!}
-
-                            @csrf()
-
-                            <input name="_method" type="hidden" value="PUT">
-
-                            {!! view_render_event('admin.quotes.edit.form_controls.information.before', ['quote' => $quote]) !!}
-
-                            <accordian :title="'{{ __('admin::app.quotes.quote-information') }}'" :active="true">
-                                <div slot="body">
-
-                                    @include('admin::common.custom-attributes.edit', [
-                                        'customAttributes'       => app('Webkul\Attribute\Repositories\AttributeRepository')
-                                            ->scopeQuery(function($query){
-                                                return $query
-                                                    ->where('entity_type', 'quotes')
-                                                    ->whereIn('code', [
-                                                        'user_id',
-                                                        'subject',
-                                                        'description',
-                                                        'expired_at',
-                                                        'person_id',
-                                                    ]);
-                                            })->get(),
-                                        'customValidations'      => [
-                                            'expired_at' => [
-                                               'required',
-                                               'date_format:yyyy-MM-dd',
-                                               'after:' . \Carbon\Carbon::yesterday()->format('Y-m-d')
-                                            ],
-                                        ],
-                                        'entity'                 => $quote,
-                                    ])
-
-                                    <div class="form-group">
-                                        <label for="validation">{{ __('admin::app.quotes.lead') }}</label>
-
-                                        @include('admin::common.custom-attributes.edit.lookup')
-
-                                        @php
-                                            $lookUpEntityData = app('Webkul\Attribute\Repositories\AttributeRepository')
-                                                ->getLookUpEntity(
-                                                    'leads',
-                                                    old('lead_id')
-                                                        ?: (
-                                                            ($lead = $quote->leads()->first())
-                                                            ? $lead->id
-                                                            : null
-                                                        )
-                                                    );
-                                        @endphp
-
-                                        <lookup-component
-                                            :attribute="{'code': 'lead_id', 'name': 'Lead', 'lookup_type': 'leads'}"
-                                            :data='@json($lookUpEntityData)'
-                                        ></lookup-component>
-                                    </div>
-
-                                </div>
-                            </accordian>
-
-                            {!! view_render_event('admin.quotes.edit.form_controls.information.after', ['quote' => $quote]) !!}
-
-
-                            {!! view_render_event('admin.quotes.edit.form_controls.address.before', ['quote' => $quote]) !!}
-
-                            <accordian :title="'{{ __('admin::app.quotes.address-information') }}'" :active="true">
-                                <div slot="body">
-
-                                    @include('admin::common.custom-attributes.edit', [
-                                        'customAttributes' => app('Webkul\Attribute\Repositories\AttributeRepository')
-                                        ->scopeQuery(function($query){
-                                            return $query
-                                                ->where('entity_type', 'quotes')
-                                                ->whereIn('code', [
-                                                    'billing_address',
-                                                    'shipping_address',
-                                                ]);
-                                        })->get(),
-                                        'entity'           => $quote,
-                                    ])
-
-                                </div>
-                            </accordian>
-
-                            {!! view_render_event('admin.quotes.edit.form_controls.address.after', ['quote' => $quote]) !!}
-
-
-                            {!! view_render_event('admin.quotes.edit.form_controls.items.before', ['quote' => $quote]) !!}
-
-                            <accordian :title="'{{ __('admin::app.quotes.quote-items') }}'" :active="true">
-                                <div slot="body">
-
-                                    <quote-item-list :data='@json($quote->items)'></quote-item-list>
-
-                                </div>
-                            </accordian>
-
-                            {!! view_render_event('admin.quotes.edit.form_controls.items.after', ['quote' => $quote]) !!}
-
-                            {!! view_render_event('admin.quotes.edit.form_controls.after', ['quote' => $quote]) !!}
-                        </div>
+                    <div class="text-xl font-bold dark:text-white">
+                        @lang('admin::app.quotes.edit.title')
                     </div>
-
                 </div>
 
+                <div class="flex items-center gap-x-2.5">
+                    <div class="flex items-center gap-x-2.5">
+                        {!! view_render_event('admin.contacts.quotes.edit.save_button.before', ['quote' => $quote]) !!}
+
+                        <!-- Save button for person -->
+                        <button
+                            type="submit"
+                            class="primary-button"
+                        >
+                            @lang('admin::app.quotes.edit.save-btn')
+                        </button>
+
+                        {!! view_render_event('admin.contacts.quotes.edit.save_button.after', ['quote' => $quote]) !!}
+                    </div>
+                </div>
             </div>
 
-        </form>
+            <v-quote :errors="errors">
+                <x-admin::shimmer.quotes />
+            </v-quote>
+        </div>
+    </x-admin::form>
 
-    </div>
-@stop
+    {!! view_render_event('admin.contacts.quotes.edit.form_controls.after', ['quote' => $quote]) !!}
 
-@push('scripts')
-    <script type="text/x-template" id="quote-item-list-template">
-        <div class="quote-item-list">
-            <div class="table">
-                <table>
+    @pushOnce('scripts')
+        <script
+            type="text/x-template"
+            id="v-quote-template"
+        >
+            <div class="box-shadow flex flex-col gap-4 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                <div class="flex w-full gap-2 border-b border-gray-200 dark:border-gray-800">
+                    {!! view_render_event('admin.contacts.quotes.edit.tags.before', ['quote' => $quote]) !!}
 
-                    <thead>
-                        <tr>
-                            <th class="name">
-                                <div class="form-group">
-                                    <label class="required">
-                                         {{ __('admin::app.quotes.name') }}
-                                    </label>
-                                </div>
-                            </th>
+                    <template
+                        v-for="tab in tabs"
+                        :key="tab.id"
+                    >
+                        <a
+                            :href="'#' + tab.id"
+                            :class="[
+                                'inline-block px-3 py-2.5 border-b-2  text-sm font-medium ',
+                                activeTab === tab.id
+                                ? 'text-brandColor border-brandColor dark:brandColor dark:brandColor'
+                                : 'text-gray-600 dark:text-gray-300  border-transparent hover:text-gray-800 hover:border-gray-400 dark:hover:border-gray-400  dark:hover:text-white'
+                            ]"
+                            @click="scrollToSection(tab.id)"
+                            :text="tab.label"
+                        ></a>
+                    </template>
 
-                            <th class="quantity">
-                                <div class="form-group">
-                                    <label class="required">
-                                        {{ __('admin::app.quotes.quantity') }}
-                                    </label>
-                                </div>                                
-                            </th>
+                    {!! view_render_event('admin.contacts.quotes.edit.tags.after', ['quote' => $quote]) !!}
+                </div>
 
-                            <th class="price">
-                                <div class="form-group">
-                                    <label class="required">
-                                         {{ __('admin::app.quotes.price') }}
-                                        <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                                    </label>
-                                </div>
-                            </th>
+                <div class="flex flex-col gap-4 px-4 py-2">
+                    {!! view_render_event('admin.contacts.quotes.edit.quote_information.before', ['quote' => $quote]) !!}
 
-                            <th class="amount">
-                                <div class="form-group">
-                                    <label class="required">
-                                        {{ __('admin::app.quotes.amount') }}
-                                        <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                                    </label>
-                                </div>
-                            </th>
+                    <!-- Quote information -->
+                    <div
+                        id="quote-info"
+                        class="flex flex-col gap-4"
+                    >
+                        <div class="flex flex-col gap-1">
+                            <p class="text-base font-semibold text-gray-800 dark:text-white">
+                                @lang('admin::app.quotes.create.quote-info')
+                            </p>
 
-                            <th class="discount">                            
-                                <div class="form-group">
-                                    <label class="required">
-                                        {{ __('admin::app.quotes.discount') }}
-                                         <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                                    </label>
-                                <div>
-                            </th>
+                            <p class="text-sm text-gray-600 dark:text-white">@lang('admin::app.quotes.create.quote-info-info')</p>
+                        </div>
 
-                            <th class="tax">
-                                <div class="form-group">
-                                    <label class="required">
-                                        {{ __('admin::app.quotes.tax') }}
-                                        <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                                    </label>
-                                </div>
-                            </th>
+                        <div class="w-1/2 max-md:w-full">
+                            <x-admin::attributes
+                                :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                                    'entity_type' => 'quotes',
+                                    ['code', 'IN', ['subject']],
+                                ])"
+                                :custom-validations="[
+                                    'expired_at' => [
+                                        'required',
+                                        'date_format:yyyy-MM-dd',
+                                        'after:' .  \Carbon\Carbon::yesterday()->format('Y-m-d')
+                                    ],
+                                ]"
+                                :entity="$quote"
+                            />
 
-                            <th class="total">
-                                <div class="form-group">     
-                                    {{ __('admin::app.quotes.total') }}
-                                    <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                                    </div>
-                            </th>
+                            <x-admin::attributes
+                                :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                                        'entity_type' => 'quotes',
+                                        ['code', 'IN', ['description']],
+                                    ])"
+                                :custom-validations="[
+                                    'expired_at' => [
+                                        'required',
+                                        'date_format:yyyy-MM-dd',
+                                        'after:' .  \Carbon\Carbon::yesterday()->format('Y-m-d')
+                                    ],
+                                ]"
+                                :entity="$quote"
+                            />
 
-                            <th class="actions"></th>
-                        </tr>
-                    </thead>
-
-                    <tbody>
-
-                        <quote-item
-                            v-for='(product, index) in products'
-                            :product="product"
-                            :key="index"
-                            :index="index"
-                            @onRemoveProduct="removeProduct($event)"
-                        ></quote-item>
-
-                    </tbody>
-
-                </table>
-
-                <a class="add-more-link" href @click.prevent="addProduct">+ {{ __('admin::app.common.add_more') }}</a>
-            </div>
-
-            {!! view_render_event('admin.quotes.edit.form_controls.summary.before', ['quote' => $quote]) !!}
-
-            <div class="quote-summary">
-                <table>
-                    <tr>
-                        <td>
-                            {{ __('admin::app.quotes.sub-total') }}
-                            <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                        </td>
-
-                        <td>-</td>
-
-                        <td>
-                            <div class="form-group">
-                                <input type="text" name="sub_total" class="control" :value="subTotal" readonly>
+                            <div class="flex gap-4">
+                                <x-admin::attributes
+                                    :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                                        'entity_type' => 'quotes',
+                                        ['code', 'IN', ['expired_at', 'user_id']],
+                                    ])->sortBy('sort_order')"
+                                    :custom-validations="[
+                                        'expired_at' => [
+                                            'required',
+                                            'date_format:yyyy-MM-dd',
+                                            'after:' .  \Carbon\Carbon::yesterday()->format('Y-m-d')
+                                        ],
+                                    ]"
+                                    :entity="$quote"
+                                />
                             </div>
-                        </td>
-                    </tr>
 
-                    <tr>
-                        <td>
-                            {{ __('admin::app.quotes.discount') }}
-                            <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                        </td>
-
-                        <td>-</td>
-
-                        <td>
-                            <div class="form-group">
-                                <input type="text" name="discount_amount" class="control" v-model="discountAmount" readonly>
-                            </div>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td>
-                            {{ __('admin::app.quotes.tax') }}
-                            <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                        </td>
-
-                        <td>-</td>
-
-                        <td>
-                            <div class="form-group">
-                                <input type="text" name="tax_amount" class="control" :value="taxAmount" readonly>
-                            </div>
-                        </td>
-                    </tr>
-
-                    <tr>
-                        <td>
-                            {{ __('admin::app.quotes.adjustment') }}
-                            <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                        </td>
-
-                        <td>-</td>
-
-                        <td>
-                            <div class="form-group" :class="[errors.has('adjustment_amount') ? 'has-error' : '']">
-                                <input
-                                    type="text"
-                                    name="adjustment_amount"
-                                    class="control"
-                                    v-model="adjustmentAmount"
-                                    v-validate="'decimal:4'"
-                                    data-vv-as="&quot;{{ __('admin::app.quotes.adjustment') }}&quot;"
+                            <div class="flex gap-4">
+                                <x-admin::attributes
+                                    :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                                        'entity_type' => 'quotes',
+                                        ['code', 'IN', ['person_id']],
+                                    ])->sortBy('sort_order')"
+                                    :custom-validations="[
+                                        'expired_at' => [
+                                            'required',
+                                            'date_format:yyyy-MM-dd',
+                                            'after:' .  \Carbon\Carbon::yesterday()->format('Y-m-d')
+                                        ],
+                                    ]"
+                                    :entity="$quote"
                                 />
 
-                                <span class="control-error" v-if="errors.has('adjustment_amount')">
-                                    @{{ errors.first('adjustment_amount') }}
-                                </span>
+                                <x-admin::attributes.edit.lookup />
+
+                                @php
+                                    $leadId = old('lead-id') ?? optional($quote->leads->first())->id;
+
+                                    $lookUpEntityData = app('Webkul\Attribute\Repositories\AttributeRepository')->getLookUpEntity('leads', $leadId);
+                                @endphp
+
+                                <x-admin::form.control-group class="w-full">
+                                    <x-admin::form.control-group.label>
+                                        @lang('admin::app.quotes.create.link-to-lead')
+                                    </x-admin::form.control-group.label>
+
+                                    <v-lookup-component
+                                        :key="leadEntity.id"
+                                        :attribute="{'code': 'lead_id', 'name': 'Lead', 'lookup_type': 'leads'}"
+                                        :value="leadEntity"
+                                        can-add-new="true"
+                                        @lookup-removed="setLeadEntity"
+                                    ></v-lookup-component>
+                                </x-admin::form.control-group>
                             </div>
-                        </td>
-                    </tr>
 
-                    <tr>
-                        <td>
-                            {{ __('admin::app.quotes.grand-total') }}
-                            <span class="currency-code">({{ core()->currencySymbol(config('app.currency')) }})</span>
-                        </td>
-
-                        <td>-</td>
-
-                        <td>
-                            <div class="form-group">
-                                <input type="text" name="grand_total" class="control" :value="grandTotal" readonly>
-                            </div>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-
-            {!! view_render_event('admin.quotes.edit.form_controls.summary.after', ['quote' => $quote]) !!}
-        </div>
-    </script>
-
-    <script type="text/x-template" id="quote-item-template">
-        <tr>
-            <td>
-                <div class="form-group" :class="[errors.has(inputName + '[product_id]') ? 'has-error' : '']">
-                    <input
-                        type="text"
-                        :name="[inputName + '[product_id]']"
-                        class="control"
-                        v-model="product['name']"
-                        autocomplete="off"
-                        v-validate="'required'"
-                        data-vv-as="&quot;{{ __('admin::app.quotes.name') }}&quot;"
-                        v-on:keyup="search"
-                    />
-
-                    <input
-                        type="hidden"
-                        :name="[inputName + '[product_id]']"
-                        v-model="product.product_id"
-                        v-validate="'required'"
-                        data-vv-as="&quot;{{ __('admin::app.quotes.name') }}&quot;"
-                    />
-
-                    <div class="lookup-results" v-if="state == ''">
-                        <ul>
-                            <li v-for='(product, index) in products' @click="addProduct(product)">
-                                <span>@{{ product.name }}</span>
-                            </li>
-
-                            <li v-if="! products.length && product['name'].length && ! is_searching">
-                                <span>{{ __('admin::app.common.no-result-found') }}</span>
-                            </li>
-                        </ul>
+                            <!-- Custom Attributes -->
+                            <x-admin::attributes
+                                :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                                    'entity_type'     => 'quotes',
+                                    'is_user_defined' => 1,
+                                ])->sortBy('sort_order')"
+                                :custom-validations="[
+                                    'expired_at' => [
+                                        'required',
+                                        'date_format:yyyy-MM-dd',
+                                        'after:' .  \Carbon\Carbon::yesterday()->format('Y-m-d')
+                                    ],
+                                ]"
+                                :entity="$quote"
+                            />
+                        </div>
                     </div>
 
-                    <i class="icon loader-active-icon" v-if="is_searching"></i>
+                    {!! view_render_event('admin.contacts.quotes.edit.quote_information.after', ['quote' => $quote]) !!}
 
-                    <span class="control-error" v-if="errors.has(inputName + '[product_id]')">
-                        @{{ errors.first(inputName + '[product_id]') }}
-                    </span>
+                    {!! view_render_event('admin.contacts.quotes.edit.address_information.before', ['quote' => $quote]) !!}
+
+                    <!-- Address information -->
+                    <div
+                        id="address-info"
+                        class="flex flex-col gap-4"
+                    >
+                        <div class="flex flex-col gap-1">
+                            <p class="text-base font-semibold text-gray-800 dark:text-white">
+                                @lang('admin::app.quotes.create.address-info')
+                            </p>
+
+                            <p class="text-sm text-gray-600 dark:text-white">
+                                @lang('admin::app.quotes.create.address-info-info')
+                            </p>
+                        </div>
+
+                        <div class="w-1/2 max-md:w-full">
+                            <x-admin::attributes
+                                :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                                    'entity_type' => 'quotes',
+                                    ['code', 'IN', ['billing_address', 'shipping_address']],
+                                ])"
+                                :custom-validations="[
+                                    'billing_address' => [
+                                        'max:100',
+                                    ],
+                                    'shipping_address' => [
+                                        'max:100',
+                                    ],
+                                ]"
+                                :entity="$quote"
+                            />
+                        </div>
+                    </div>
+
+                    {!! view_render_event('admin.contacts.quotes.edit.address_information.after', ['quote' => $quote]) !!}
+
+                    {!! view_render_event('admin.contacts.quotes.edit.quote_information.before', ['quote' => $quote]) !!}
+
+                    <!-- Quote Item Information -->
+                    <div
+                        id="quote-items"
+                        class="flex flex-col gap-4"
+                    >
+                        <div class="flex flex-col gap-1">
+                            <p class="text-base font-semibold text-gray-800 dark:text-white">
+                                @lang('admin::app.quotes.create.quote-items')
+                            </p>
+
+                            <p class="text-sm text-gray-600 dark:text-white">
+                                @lang('admin::app.quotes.create.quote-item-info')
+                            </p>
+                        </div>
+
+                        <!-- Quote Item List Vue Component -->
+                        <v-quote-item-list :errors="errors"></v-quote-item-list>
+                    </div>
+
+                    {!! view_render_event('admin.contacts.quotes.edit.quote_information.after', ['quote' => $quote]) !!}
                 </div>
-            </td>
 
-            <td>
-                <div class="form-group" :class="[errors.has(inputName + '[quantity]') ? 'has-error' : '']">
-                    <input
-                        type="text"
-                        :name="[inputName + '[quantity]']"
-                        class="control"
-                        v-model="product.quantity"
-                        v-validate="'required|decimal:4'"
-                        data-vv-as="&quot;{{ __('admin::app.quotes.quantity') }}&quot;"
-                    />
+                {!! view_render_event('admin.contacts.quotes.edit.form_controls.after', ['quote' => $quote]) !!}
+            </div>
+        </script>
 
-                    <span class="control-error" v-if="errors.has(inputName + '[quantity]')">
-                        @{{ errors.first(inputName + '[quantity]') }}
-                    </span>
+        <script
+            type="text/x-template"
+            id="v-quote-item-list-template"
+        >
+            <div class="flex flex-col gap-4">
+                <div class="block w-full overflow-x-auto">
+                    <!-- Table -->
+                    <x-admin::table>
+                        <!-- Table Head -->
+                        <x-admin::table.thead>
+                            <x-admin::table.thead.tr>
+                                <x-admin::table.th>
+                                    @lang('admin::app.quotes.create.product-name')
+                                </x-admin::table.th>
+
+                                <x-admin::table.th class="text-center">
+                                    @lang('admin::app.quotes.create.quantity')
+                                </x-admin::table.th>
+
+                                <x-admin::table.th class="text-center">
+                                    @lang('admin::app.quotes.create.price') ({{ core()->currencySymbol(config('app.currency')) }})
+                                </x-admin::table.th>
+
+                                <x-admin::table.th class="text-center">
+                                    @lang('admin::app.quotes.create.amount') ({{ core()->currencySymbol(config('app.currency')) }})
+                                </x-admin::table.th>
+
+                                <x-admin::table.th class="text-center">
+                                    @lang('admin::app.quotes.create.discount') ({{ core()->currencySymbol(config('app.currency')) }})
+                                </x-admin::table.th>
+
+                                <x-admin::table.th class="text-center">
+                                    @lang('admin::app.quotes.create.tax') ({{ core()->currencySymbol(config('app.currency')) }})
+                                </x-admin::table.th>
+
+                                <x-admin::table.th class="text-center">
+                                    @lang('admin::app.quotes.create.total') ({{ core()->currencySymbol(config('app.currency')) }})
+                                </x-admin::table.th>
+
+                                <x-admin::table.th
+                                    v-if="products.length > 1"
+                                    class="!px-2 ltr:text-right rtl:text-left"
+                                >
+                                    @lang('admin::app.quotes.create.action')
+                                </x-admin::table.th>
+                            </x-admin::table.thead.tr>
+                        </x-admin::table.thead>
+
+                        <!-- Table Body -->
+                        <x-admin::table.tbody>
+                            <!-- Quote Item Vue component -->
+                            <template
+                                v-for='(product, index) in products'
+                                :key="index"
+                            >
+                                <v-quote-item
+                                    :product="product"
+                                    :index="index"
+                                    :errors="errors"
+                                    @onRemoveProduct="removeProduct($event)"
+                                ></v-quote-item>
+                            </template>
+                        </x-admin::table.tbody>
+                    </x-admin::table>
                 </div>
-            </td>
 
-            <td>
-                <div class="form-group" :class="[errors.has(inputName + '[price]') ? 'has-error' : '']">
-                    <input
-                        type="text"
-                        :name="[inputName + '[price]']"
-                        class="control"
-                        v-model="product.price"
-                        v-validate="'required|decimal:4'"
-                        data-vv-as="&quot;{{ __('admin::app.quotes.price') }}&quot;"
-                    />
+                <!-- Add New Quote Item -->
+                <span
+                    class="text-md flex max-w-max cursor-pointer items-center gap-2 text-brandColor"
+                    @click="addProduct"
+                >
+                    @lang('admin::app.quotes.create.add-item')
+                </span>
 
-                    <span class="control-error" v-if="errors.has(inputName + '[price]')">
-                        @{{ errors.first(inputName + '[price]') }}
-                    </span>
+                <div class="flex justify-end">
+                    <div class="grid w-[348px] gap-4 rounded-lg bg-gray-100 p-4 text-sm dark:bg-gray-950 dark:text-white">
+                        <div class="flex w-full justify-between gap-x-5">
+                            @lang('admin::app.quotes.create.sub-total', ['symbol' => core()->currencySymbol(config('app.currency'))])
+
+                            <input
+                                type="hidden"
+                                name="sub_total"
+                                class="control"
+                                :value="subTotal"
+                                readonly
+                            >
+
+                            <p>@{{ subTotal }}</p>
+                        </div>
+
+                        <div class="flex w-full justify-between gap-x-5">
+                            @lang('admin::app.quotes.create.total-discount', ['symbol' => core()->currencySymbol(config('app.currency'))])
+
+                            <input
+                                type="hidden"
+                                name="discount_amount"
+                                :value="discountAmount"
+                            >
+
+                            <p>@{{ discountAmount }}</p>
+                        </div>
+
+                        <div class="flex w-full justify-between gap-x-5">
+                            @lang('admin::app.quotes.create.total-tax', ['symbol' => core()->currencySymbol(config('app.currency'))])
+
+                            <input
+                                type="hidden"
+                                name="tax_amount"
+                                :value="taxAmount"
+                            >
+
+                            <p>@{{ taxAmount }}</p>
+                        </div>
+
+                        <div class="flex w-full justify-between gap-x-5">
+                            @lang('admin::app.quotes.create.total-adjustment', ['symbol' => core()->currencySymbol(config('app.currency'))])
+
+                            <x-admin::form.control-group.control
+                                type="inline"
+                                ::name="`adjustment_amount`"
+                                ::value="adjustmentAmount"
+                                rules="required|decimal:4"
+                                ::errors="errors"
+                                :label="trans('admin::app.quotes.create.adjustment-amount')"
+                                :placeholder="trans('admin::app.quotes.create.adjustment-amount')"
+                                @on-change="(event) => adjustmentAmount = event.value"
+                            />
+                        </div>
+
+                        <div class="flex w-full justify-between gap-x-5">
+                            @lang('admin::app.quotes.create.grand-total', ['symbol' => core()->currencySymbol(config('app.currency'))])
+
+                            <input
+                                type="hidden"
+                                name="grand_total"
+                                :value="grandTotal"
+                            >
+
+                            <p>@{{ grandTotal }}</p>
+                        </div>
+                    </div>
                 </div>
-            </td>
+            </div>
+        </script>
 
-            <td>
-                <div class="form-group" :class="[errors.has(inputName + '[price]') ? 'has-error' : '']">
-                    <input
-                        type="text"
-                        :name="[inputName + '[total]']"
-                        class="control"
-                        v-model="product.price * product.quantity"
-                        readonly
-                    />
-                </div>
-            </td>
+        <script
+            type="text/x-template"
+            id="v-quote-item-template"
+        >
+            <x-admin::table.thead.tr>
+                <!-- Quote Product Name -->
+                <x-admin::table.td>
+                    <x-admin::form.control-group class="!mb-0">
+                        <x-admin::lookup
+                            ::src="src"
+                            ::name="`${inputName}[product_id]`"
+                            ::params="params"
+                            ::value="{ id: product.product_id, name: product.name }"
+                            @on-selected="(product) => addProduct(product)"
+                            :placeholder="trans('admin::app.quotes.edit.search-products')"
+                        />
+                    </x-admin::form.control-group>
+                </x-admin::table.td>
 
-            <td>
-                <div class="form-group" :class="[errors.has(inputName + '[discount_amount]') ? 'has-error' : '']">
-                    <input
-                        type="text"
-                        :name="[inputName + '[discount_amount]']"
-                        class="control"
-                        v-model="product.discount_amount"
-                        v-validate="'required|decimal:4'"
-                        data-vv-as="&quot;{{ __('admin::app.quotes.discount') }}&quot;"
-                    />
+                <!-- Quantity -->
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                    <x-admin::form.control-group class="!mb-0">
+                        <x-admin::form.control-group.control
+                            type="inline"
+                            ::name="`${inputName}[quantity]`"
+                            ::value="product.quantity"
+                            rules="required|decimal:4"
+                            ::errors="errors"
+                            :label="trans('admin::app.quotes.create.quantity')"
+                            :placeholder="trans('admin::app.quotes.create.quantity')"
+                            @on-change="(event) => product.quantity = event.value"
+                            position="center"
+                        />
+                    </x-admin::form.control-group>
+                </x-admin::table.td>
 
-                    <span class="control-error" v-if="errors.has(inputName + '[discount_amount]')">
-                        @{{ errors.first(inputName + '[discount_amount]') }}
-                    </span>
-                </div>
-            </td>
+                <!-- Price -->
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                    <x-admin::form.control-group class="!mb-0">
+                        <x-admin::form.control-group.control
+                            type="inline"
+                            ::name="`${inputName}[price]`"
+                            ::value="product.price"
+                            rules="required|decimal:4"
+                            ::errors="errors"
+                            :label="trans('admin::app.quotes.create.price')"
+                            :placeholder="trans('admin::app.quotes.create.price')"
+                            @on-change="(event) => product.price = event.value"
+                            position="center"
+                            ::value-label="$admin.formatPrice(product.price)"
+                        />
+                    </x-admin::form.control-group>
+                </x-admin::table.td>
 
-            <td>
-                <div class="form-group" :class="[errors.has(inputName + '[tax_amount]') ? 'has-error' : '']">
-                    <input
-                        type="text"
-                        :name="[inputName + '[tax_amount]']"
-                        class="control"
-                        v-model="product.tax_amount"
-                        v-validate="'required|decimal:4'"
-                        data-vv-as="&quot;{{ __('admin::app.quotes.tax') }}&quot;"
-                    />
+                <!-- Total -->
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                    <x-admin::form.control-group class="!mb-0">
+                        <x-admin::form.control-group.control
+                            type="inline"
+                            ::name="`${inputName}[total]`"
+                            ::value="product.price * product.quantity"
+                            rules="required|decimal:4"
+                            ::errors="errors"
+                            :label="trans('admin::app.quotes.create.total')"
+                            :placeholder="trans('admin::app.quotes.create.total')"
+                            :allowEdit="false"
+                            position="center"
+                            ::value-label="$admin.formatPrice(product.price * product.quantity)"
+                        />
+                    </x-admin::form.control-group>
+                </x-admin::table.td>
 
-                    <span class="control-error" v-if="errors.has(inputName + '[tax_amount]')">
-                        @{{ errors.first(inputName + '[tax_amount]') }}
-                    </span>
-                </div>
-            </td>
+                <!-- Discount Amount -->
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                    <x-admin::form.control-group class="!mb-0">
+                        <x-admin::form.control-group.control
+                            type="inline"
+                            ::name="`${inputName}[discount_amount]`"
+                            ::value="product.discount_amount"
+                            rules="required|decimal:4"
+                            ::errors="errors"
+                            :label="trans('admin::app.quotes.create.discount-amount')"
+                            :placeholder="trans('admin::app.quotes.create.discount-amount')"
+                            @on-change="(event) => product.discount_amount = event.value"
+                            position="center"
+                            ::value-label="$admin.formatPrice(product.discount_amount)"
+                        />
+                    </x-admin::form.control-group>
+                </x-admin::table.td>
 
-            <td>
-                <div class="form-group" :class="[errors.has(inputName + '[price]') ? 'has-error' : '']">
-                    <input
-                        type="text"
-                        :value="parseFloat(product.price * product.quantity) + parseFloat(product.tax_amount) - parseFloat(product.discount_amount)"
-                        class="control"
-                        readonly
-                    />
-                </div>
-            </td>
+                <!-- Tax Amount -->
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                    <x-admin::form.control-group class="!mb-0">
+                        <x-admin::form.control-group.control
+                            type="inline"
+                            ::name="`${inputName}[tax_amount]`"
+                            ::value="product.tax_amount"
+                            rules="required|decimal:4"
+                            ::errors="errors"
+                            :label="trans('admin::app.quotes.create.tax-amount')"
+                            :placeholder="trans('admin::app.quotes.create.tax-amount')"
+                            @on-change="(event) => product.tax_amount = event.value"
+                            position="center"
+                            ::value-label="$admin.formatPrice(product.tax_amount)"
+                        />
+                    </x-admin::form.control-group>
+                </x-admin::table.td>
 
-            <td class="actions">
-                <i class="icon trash-icon" @click="removeProduct" v-if="this.$parent.products.length > 1"></i>
-            </td>
-        </tr>
-    </script>
+                <!-- Total with Discount -->
+                <x-admin::table.td class="!px-2 ltr:text-right rtl:text-left">
+                    <x-admin::form.control-group class="!mb-0">
+                        <x-admin::form.control-group.control
+                            type="inline"
+                            ::name="`${inputName}[final_total]`"
+                            ::errors="errors"
+                            ::value="parseFloat(product.price * product.quantity) + parseFloat(product.tax_amount) - parseFloat(product.discount_amount)"
+                            :allowEdit="false"
+                            position="center"
+                            ::value-label="$admin.formatPrice(parseFloat(product.price * product.quantity) + parseFloat(product.tax_amount) - parseFloat(product.discount_amount))"
+                        />
+                    </x-admin::form.control-group>
+                </x-admin::table.td>
 
-    <script>
-        Vue.component('quote-item-list', {
+                <!-- Action -->
+                <x-admin::table.td
+                    v-if="$parent.products.length > 1"
+                    class="!p-2 !px-2 ltr:text-right rtl:text-left"
+                >
+                    <x-admin::form.control-group class="!mb-0">
+                        <i
+                            @click="removeProduct"
+                            class="icon-delete cursor-pointer text-2xl"
+                        ></i>
+                    </x-admin::form.control-group>
+                </x-admin::table.td>
+            </x-admin::table.thead.tr>
+        </script>
 
-            template: '#quote-item-list-template',
+        <script type="module">
+            app.component('v-quote', {
+                template: '#v-quote-template',
 
-            props: ['data'],
+                props: ['errors'],
 
-            inject: ['$validator'],
+                data() {
+                    return {
+                        activeTab: 'quote-info',
 
-            data: function () {
-                return {
-                    adjustmentAmount: 0,
+                        tabs: [
+                            { id: 'quote-info', label: '@lang('admin::app.quotes.create.quote-info')' },
+                            { id: 'address-info', label: '@lang('admin::app.quotes.create.address-info')' },
+                            { id: 'quote-items', label: '@lang('admin::app.quotes.create.quote-items')' }
+                        ],
 
-                    products: this.data ? this.data : [{
-                        'id': null,
-                        'product_id': null,
-                        'name': '',
-                        'quantity': 0,
-                        'price': 0,
-                        'discount_amount': 0,
-                        'tax_amount': 0,
-                    }],
-                }
-            },
-
-            computed: {
-                subTotal:  function() {
-                    var total = 0;
-
-                    this.products.forEach(product => {
-                        total += parseFloat(product.price * product.quantity);
-                    });
-
-                    return total;
+                        leadEntity: @json($lookUpEntityData ?? []),
+                    };
                 },
 
-                discountAmount: function() {
-                    var total = 0;
+                methods: {
+                    /**
+                     * Scroll to the section.
+                     *
+                     * @param {String} tabId
+                     *
+                     * @returns {void}
+                     */
+                    scrollToSection(tabId) {
+                        const section = document.getElementById(tabId);
 
-                    this.products.forEach(product => {
-                        total += parseFloat(product.discount_amount);
-                    });
+                        if (section) {
+                            section.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    },
 
-                    return total;
+                    setLeadEntity($event) {
+                        this.leadEntity = $event;
+                    },
                 },
+            });
 
-                taxAmount: function() {
-                    var total = 0;
+            app.component('v-quote-item-list', {
+                template: '#v-quote-item-list-template',
 
-                    this.products.forEach(product => {
-                        total += parseFloat(product.tax_amount);
-                    });
+                props: ['errors'],
 
-                    return total;
-                },
+                data() {
+                    return {
+                        adjustmentAmount: 0,
 
-                grandTotal: function() {
-                    var total = 0;
-
-                    this.products.forEach(product => {
-                        total += parseFloat(product.price * product.quantity) + parseFloat(product.tax_amount) - parseFloat(product.discount_amount) + parseFloat(this.adjustmentAmount);
-                    });
-
-                    return total;
-                }
-            },
-
-            methods: {
-                addProduct: function() {
-                    this.products.push({
-                        'id': null,
-                        'product_id': null,
-                        'name': '',
-                        'quantity': null,
-                        'price': null,
-                        'discount_amount': null,
-                        'tax_amount': null,
-                    })
-                },
-
-                removeProduct: function(product) {
-                    if (this.products.length == 1) {
-                        this.products = [{
-                            'id': null,
-                            'product_id': null,
-                            'name': '',
-                            'quantity': null,
-                            'price': null,
-                            'discount_amount': null,
-                            'tax_amount': null,
-                        }];
-                    } else {
-                        const index = this.products.indexOf(product);
-
-                        Vue.delete(this.products, index);
+                        products: @json($quote->items),
                     }
-                }
-            }
-        });
+                },
 
-        Vue.component('quote-item', {
+                computed: {
+                    /**
+                     * Calculate the sub total of the products.
+                     *
+                     * @returns {Number}
+                     */
+                    subTotal() {
+                        let total = 0;
 
-            template: '#quote-item-template',
+                        this.products.forEach(product => {
+                            total += parseFloat(product.price * product.quantity);
+                        });
 
-            props: ['index', 'product'],
+                        return total;
+                    },
 
-            inject: ['$validator'],
+                    /**
+                     * Calculate the total discount amount of the products.
+                     *
+                     * @returns {Number}
+                     */
+                    discountAmount() {
+                        let total = 0;
 
-            data: function () {
-                return {
-                    is_searching: false,
+                        this.products.forEach(product => total += parseFloat(product.discount_amount));
 
-                    state: this.product['product_id'] ? 'old' : '',
+                        return total;
+                    },
 
-                    products: [],
-                }
-            },
+                    /**
+                     * Calculate the total tax amount of the products.
+                     *
+                     * @returns {Number}
+                     */
+                    taxAmount() {
+                        let total = 0;
 
-            computed: {
-                inputName: function () {
-                    if (this.product.id) {
-                        return "items[" + this.product.id + "]";
-                    }
+                        this.products.forEach(product => total += parseFloat(product.tax_amount));
 
-                    return "items[item_" + this.index + "]";
-                }
-            },
+                        return total;
+                    },
 
-            methods: {
-                search: debounce(function () {
-                    this.state = '';
+                    /**
+                     * Calculate the grand total of the products.
+                     *
+                     * @returns {Number}
+                     */
+                    grandTotal() {
+                        let total = 0;
 
-                    this.product['product_id'] = null;
+                        this.products.forEach(product => {
+                            total += parseFloat(product.price * product.quantity) + parseFloat(product.tax_amount) - parseFloat(product.discount_amount) + parseFloat(this.adjustmentAmount);
+                        });
 
-                    this.is_searching = true;
+                        return total;
+                    },
+                },
 
-                    if (this.product['name'].length < 2) {
-                        this.products = [];
+                methods: {
+                    /**
+                     * Add a new product.
+                     *
+                     * @returns {void}
+                     */
+                    addProduct() {
+                        this.products.push({
+                            id: null,
+                            product_id: null,
+                            name: '',
+                            quantity: 1,
+                            total: 0,
+                            price: 0,
+                            discount_amount: 0,
+                            tax_amount: 0,
+                        });
+                    },
 
-                        this.is_searching = false;
+                    /**
+                     * Remove the product.
+                     *
+                     * @param {Object} product
+                     */
+                    removeProduct(product) {
+                        this.$emitter.emit('open-confirm-modal', {
+                            agree: () => {
+                                if (this.products.length === 1) {
+                                    this.products = [{
+                                        id: null,
+                                        product_id: null,
+                                        name: '',
+                                        quantity: null,
+                                        total: 0,
+                                        price: null,
+                                        discount_amount: null,
+                                        tax_amount: null,
+                                    }];
+                                } else {
+                                    const index = this.products.indexOf(product);
 
-                        return;
-                    }
-
-                    var self = this;
-
-                    this.$http.get("{{ route('admin.products.search') }}", {params: {query: this.product['name']}})
-                        .then (function(response) {
-                            self.$parent.products.forEach(function(addedProduct) {
-
-                                response.data.forEach(function(product, index) {
-                                    if (product.id == addedProduct.product_id) {
-                                        response.data.splice(index, 1);
+                                    if (index !== -1) {
+                                        this.products.splice(index, 1);
                                     }
-                                });
+                                }
+                            },
+                        });
+                    },
+                },
+            });
 
-                            });
+            app.component('v-quote-item', {
+                template: '#v-quote-item-template',
 
-                            self.products = response.data;
+                props: ['index', 'product', 'errors'],
 
-                            self.is_searching = false;
-                        })
-                        .catch (function (error) {
-                            self.is_searching = false;
-                        })
-                }, 500),
+                data() {
+                    return {
+                        state: this.product['product_id'] ? 'old' : '',
 
-                addProduct: function(result) {
-                    this.state = 'old';
-
-                    Vue.set(this.product, 'product_id', result.id);
-                    Vue.set(this.product, 'name', result.name);
-                    Vue.set(this.product, 'price', result.price);
-                    Vue.set(this.product, 'quantity', result.quantity);
-                    Vue.set(this.product, 'discount_amount', 0);
-                    Vue.set(this.product, 'tax_amount', 0);
+                        products: [],
+                    }
                 },
 
-                removeProduct: function () {
-                    this.$emit('onRemoveProduct', this.product);
-                }
+                computed: {
+                    /**
+                     * Get the input name.
+                     *
+                     * @returns {String}
+                     */
+                    inputName() {
+                        if (this.product.id) {
+                            return "items[" + this.product.id + "]";
+                        }
+
+                        return "items[item_" + this.index + "]";
+                    },
+
+                    /**
+                     * Get the source URL.
+                     *
+                     * @returns {String}
+                     */
+                    src() {
+                        return "{{ route('admin.products.search') }}";
+                    },
+
+                    params() {
+                        return {
+                            params: {
+                                query: this.product.name,
+                            },
+                        };
+                    },
+                },
+
+                methods: {
+                    /**
+                     * Add the product.
+                     *
+                     * @param {Object} result
+                     *
+                     * @return {void}
+                     */
+                    addProduct(result) {
+                        this.product.product_id = result.id;
+                        this.product.name = result.name;
+                        this.product.price = result.price;
+                        this.product.quantity = result.quantity ?? 1;
+                        this.product.discount_amount = 0;
+                        this.product.tax_amount = 0;
+                    },
+
+                    /**
+                     * Remove the product.
+                     *
+                     * @return {void}
+                     */
+                    removeProduct() {
+                        this.$emit('onRemoveProduct', this.product);
+                    },
+                },
+            });
+        </script>
+    @endPushOnce
+
+    @pushOnce('styles')
+        <style>
+            html {
+                scroll-behavior: smooth;
             }
-        });
-    </script>
-@endpush
+        </style>
+    @endPushOnce
+</x-admin::layouts>

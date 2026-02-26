@@ -5,67 +5,26 @@ namespace Webkul\Email\Helpers;
 class Attachment
 {
     /**
-    * @var $filename Filename
-    */
-    public $filename;
+     * Content.
+     *
+     * @var File Content
+     */
+    private $content = null;
 
     /**
-    * @var $contentType Mime Type
-    */
-    public $contentType;
-
-    /**
-    * @var $content File Content
-    */
-    private $content;
-
-    /**
-    * @var $extension Filename extension
-    */
-    private $extension;
-
-    /**
-    * @var $contentDisposition Content-Disposition (attachment or inline)
-    */
-    public $contentDisposition;
-
-    /**
-    * @var $contentId Content-ID
-    */
-    public $contentId;
-
-    /**
-    * @var $headers An Array of the attachment headers
-    */
-    public $headers;
-
-    private $stream;
-
+     * Create an helper instance
+     */
     public function __construct(
-        $filename,
-        $contentType,
-        $stream,
-        $contentDisposition = 'attachment',
-        $contentId = '',
-        $headers = []
-    ) {
-        $this->filename = $filename;
-
-        $this->contentType = $contentType;
-
-        $this->stream = $stream;
-
-        $this->content = null;
-
-        $this->contentDisposition = $contentDisposition;
-
-        $this->contentId = $contentId;
-
-        $this->headers = $headers;
-    }
+        public $filename,
+        public $contentType,
+        public $stream,
+        public $contentDisposition = 'attachment',
+        public $contentId = '',
+        public $headers = []
+    ) {}
 
     /**
-     * retrieve the attachment filename
+     * Retrieve the attachment filename.
      *
      * @return string
      */
@@ -75,7 +34,7 @@ class Attachment
     }
 
     /**
-     * Retrieve the Attachment Content-Type
+     * Retrieve the attachment content type.
      *
      * @return string
      */
@@ -85,7 +44,7 @@ class Attachment
     }
 
     /**
-     * Retrieve the Attachment Content-Disposition
+     * Retrieve the attachment content disposition.
      *
      * @return string
      */
@@ -95,7 +54,7 @@ class Attachment
     }
 
     /**
-     * Retrieve the Attachment Content-ID
+     * Retrieve the attachment content ID.
      *
      * @return string
      */
@@ -105,20 +64,21 @@ class Attachment
     }
 
     /**
-    * Retrieve the Attachment Headers
-    *
-    * @return string
-    */
+     * Retrieve the attachment headers.
+     *
+     * @return string
+     */
     public function getHeaders()
     {
         return $this->headers;
     }
 
     /**
-     * Read the contents a few bytes at a time until completed
-     * Once read to completion, it always returns false
+     * Read the contents a few bytes at a time until completed.
      *
-     * @param  integer  $bytes
+     * Once read to completion, it always returns false.
+     *
+     * @param  int  $bytes
      * @return string
      */
     public function read($bytes = 2082)
@@ -127,8 +87,9 @@ class Attachment
     }
 
     /**
-     * Retrieve the file content in one go
-     * Once you retreive the content you cannot use MimeMailParser_attachment::read()
+     * Retrieve the file content in one go.
+     *
+     * Once you retrieve the content you cannot use MimeMailParser_attachment::read().
      *
      * @return string
      */

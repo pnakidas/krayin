@@ -1,29 +1,50 @@
-@extends('admin::layouts.master')
+<x-admin::layouts>
+    <!-- Page Title -->
+    <x-slot:title>
+        @lang('admin::app.contacts.organizations.index.title')
+    </x-slot>
 
-@section('page_title')
-    {{ __('admin::app.contacts.organizations.title') }}
-@stop
+    <div class="flex flex-col gap-4">
+        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+            <div class="flex flex-col gap-2">
+                {!! view_render_event('admin.organizations.index.breadcrumbs.before') !!}
 
-@section('content-wrapper')
-    <div class="content full-page">
-        <table-component data-src="{{ route('admin.contacts.organizations.index') }}">
-            <template v-slot:table-header>
-                <h1>
-                    {!! view_render_event('admin.contacts.organizations.index.header.before') !!}
+                <!-- Breadcrumbs -->
+                <x-admin::breadcrumbs name="contacts.organizations" />
 
-                    {{ Breadcrumbs::render('contacts.organizations') }}
+                {!! view_render_event('admin.organizations.index.breadcrumbs.before') !!}
+                
+                <div class="text-xl font-bold dark:text-gray-300">
+                    @lang('admin::app.contacts.organizations.index.title')
+                </div>
+            </div>
 
-                    {{ __('admin::app.contacts.organizations.title') }}
+            <div class="flex items-center gap-x-2.5">
+                <div class="flex items-center gap-x-2.5">
+                    {!! view_render_event('admin.organizations.index.create_button.before') !!}
 
-                    {!! view_render_event('admin.contacts.organizations.index.header.after') !!}
-                </h1>
-            </template>
+                    @if (bouncer()->hasPermission('contacts.organizations.create'))
+                        <!-- Create button for person -->
+                        <a
+                            href="{{ route('admin.contacts.organizations.create') }}"
+                            class="primary-button"
+                        >
+                            @lang('admin::app.contacts.organizations.index.create-btn')
+                        </a>
+                    @endif
 
-            @if (bouncer()->hasPermission('contacts.organizations.create'))
-                <template v-slot:table-action>
-                    <a href="{{ route('admin.contacts.organizations.create') }}" class="btn btn-md btn-primary">{{ __('admin::app.contacts.organizations.create-title') }}</a>
-                </template>
-            @endif
-        <table-component>
+                    {!! view_render_event('admin.organizations.index.create_button.after') !!}
+                </div>
+            </div>
+        </div>
+
+        {!! view_render_event('admin.organizations.datagrid.index.before') !!}
+
+        <x-admin::datagrid :src="route('admin.contacts.organizations.index')" >
+            <!-- DataGrid Shimmer -->
+            <x-admin::shimmer.datagrid />
+        </x-admin::datagrid>
+
+        {!! view_render_event('admin.organizations.datagrid.index.after') !!}
     </div>
-@stop
+</x-admin::layouts>

@@ -1,66 +1,107 @@
-@extends('admin::layouts.master')
 
-@section('page_title')
-    {{ __('admin::app.products.edit-title') }}
-@stop
+<x-admin::layouts>
+    <!-- Page Title -->
+    <x-slot:title>
+        @lang('admin::app.products.edit.title')
+    </x-slot>
 
-@section('content-wrapper')
-    <div class="content full-page adjacent-center">
-        {!! view_render_event('admin.products.edit.header.before', ['product' => $product]) !!}
+    {!! view_render_event('admin.products.edit.form.before') !!}
 
-        <div class="page-header">
+    <x-admin::form
+        :action="route('admin.products.update', $product->id)"
+        encType="multipart/form-data"
+        method="PUT"
+    >
+        <div class="flex flex-col gap-4">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                <div class="flex flex-col gap-2">
+                    <!-- Breadcrumbs -->
+                    <x-admin::breadcrumbs
+                        name="products.edit"
+                        :entity="$product"
+                     />
 
-            {{ Breadcrumbs::render('products.edit', $product) }}
-
-            <div class="page-title">
-                <h1>{{ __('admin::app.products.edit-title') }}</h1>
-            </div>
-        </div>
-
-        {!! view_render_event('admin.products.edit.header.after', ['product' => $product]) !!}
-
-        <form method="POST" action="{{ route('admin.products.update', $product->id) }}" @submit.prevent="onSubmit" enctype="multipart/form-data">
-
-            <div class="page-content">
-                <div class="form-container">
-
-                    <div class="panel">
-                        <div class="panel-header">
-                            {!! view_render_event('admin.products.edit.form_buttons.before', ['product' => $product]) !!}
-
-                            <button type="submit" class="btn btn-md btn-primary">
-                                {{ __('admin::app.products.save-btn-title') }}
-                            </button>
-
-                            <a href="{{ route('admin.products.index') }}">{{ __('admin::app.products.back') }}</a>
-
-                            {!! view_render_event('admin.products.edit.form_buttons.after', ['product' => $product]) !!}
-                        </div>
-        
-                        <div class="panel-body">
-                            {!! view_render_event('admin.products.edit.form_controls.before', ['product' => $product]) !!}
-
-                            @csrf()
-
-                            <input name="_method" type="hidden" value="PUT">
-                
-                            @include('admin::common.custom-attributes.edit', [
-                                'customAttributes' => app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
-                                    'entity_type' => 'products',
-                                ]),
-                                'entity'           => $product,
-                            ])
-
-                            {!! view_render_event('admin.products.edit.form_controls.after', ['product' => $product]) !!}
-
-                        </div>
+                    <div class="text-xl font-bold dark:text-white">
+                        @lang('admin::app.products.edit.title')
                     </div>
-
                 </div>
 
+                <div class="flex items-center gap-x-2.5">
+                    <div class="flex items-center gap-x-2.5">
+                        {!! view_render_event('admin.products.edit.create_button.before', ['product' => $product]) !!}
+                        
+                        <!-- Edit button for Product -->
+                        <button
+                            type="submit"
+                            class="primary-button"
+                        >
+                            @lang('admin::app.products.create.save-btn')
+                        </button>
+
+                        {!! view_render_event('admin.products.edit.create_button.after', ['product' => $product]) !!}
+                    </div>
+                </div>
             </div>
 
-        </form>
+            <div class="flex gap-2.5 max-xl:flex-wrap">
+                <!-- Left sub-component -->
+                <div class="flex flex-1 flex-col gap-2 max-xl:flex-auto">
+                    <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                        <p class="mb-4 text-base font-semibold text-gray-800 dark:text-white">
+                            @lang('admin::app.products.create.general')
+                        </p>
 
-    </div>
-@stop
+                        {!! view_render_event('admin.products.edit.attributes.before', ['product' => $product]) !!}
+
+                        <x-admin::attributes
+                            :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                                'entity_type' => 'products',
+                                ['code', 'NOTIN', ['price', 'quantity']],
+                            ])"
+                            :entity="$product"
+                        />
+
+                        {!! view_render_event('admin.products.edit.attributes.after', ['product' => $product]) !!}
+                    </div>
+                </div>
+
+                <!-- Right sub-component -->
+                <div class="flex w-[360px] max-w-full flex-col gap-2 max-sm:w-full">
+                    {!! view_render_event('admin.products.edit.accordion.before', ['product' => $product]) !!}
+
+                    <x-admin::accordion >
+                        <x-slot:header>
+                            {!! view_render_event('admin.products.edit.accordion.header.before', ['product' => $product]) !!}
+
+                            <div class="flex items-center justify-between">
+                                <p class="p-2.5 text-base font-semibold text-gray-800 dark:text-white">
+                                    @lang('admin::app.products.create.price')
+                                </p>
+                            </div>
+
+                            {!! view_render_event('admin.products.edit.accordion.header.after', ['product' => $product]) !!}
+                        </x-slot>
+
+                        <x-slot:content>
+                            {!! view_render_event('admin.products.edit.accordion.content.attributes.before', ['product' => $product]) !!}
+
+                            <x-admin::attributes
+                                :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                                    'entity_type' => 'products',
+                                    ['code', 'IN', ['price', 'quantity']],
+                                ])"
+                                :entity="$product"
+                            />
+
+                            {!! view_render_event('admin.products.edit.accordion.content.attributes.after', ['product' => $product]) !!}
+                        </x-slot>
+                    </x-admin::accordion>
+
+                    {!! view_render_event('admin.products.edit.accordion.after', ['product' => $product]) !!}
+                </div>
+            </div>
+        </div>
+    </x-admin::form>
+
+    {!! view_render_event('admin.products.edit.form.after') !!}
+</x-admin::layouts>

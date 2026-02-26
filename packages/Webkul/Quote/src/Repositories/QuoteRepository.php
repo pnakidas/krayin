@@ -4,65 +4,61 @@ namespace Webkul\Quote\Repositories;
 
 use Illuminate\Container\Container;
 use Illuminate\Support\Str;
-use Webkul\Core\Eloquent\Repository;
+use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
+use Webkul\Core\Eloquent\Repository;
+use Webkul\Quote\Contracts\Quote;
 
 class QuoteRepository extends Repository
 {
     /**
-     * AttributeValueRepository object
-     *
-     * @var \Webkul\Attribute\Repositories\AttributeValueRepository
+     * Searchable fields.
      */
-    protected $attributeValueRepository;
-
-    /**
-     * QuoteItemRepository object
-     *
-     * @var \Webkul\Quote\Repositories\QuoteItemRepository
-     */
-    protected $quoteItemRepository;
+    protected $fieldSearchable = [
+        'subject',
+        'description',
+        'person_id',
+        'person.name',
+        'user_id',
+        'user.name',
+    ];
 
     /**
      * Create a new repository instance.
      *
-     * @param  \Webkul\Attribute\Repositories\AttributeValueRepository  $attributeValueRepository
-     * @param  \Webkul\Quote\Repositories\QuoteItemRepository  $quoteItemRepository
-     * @param  \Illuminate\Container\Container  $container
      * @return void
      */
     public function __construct(
-        AttributeValueRepository $attributeValueRepository,
-        QuoteItemRepository $quoteItemRepository,
+        protected AttributeRepository $attributeRepository,
+        protected AttributeValueRepository $attributeValueRepository,
+        protected QuoteItemRepository $quoteItemRepository,
         Container $container
-    )
-    {
-        $this->attributeValueRepository = $attributeValueRepository;
-
-        $this->quoteItemRepository = $quoteItemRepository;
-
+    ) {
         parent::__construct($container);
     }
 
     /**
-     * Specify Model class name
+     * Specify model class name.
      *
      * @return mixed
      */
-    function model()
+    public function model()
     {
-        return 'Webkul\Quote\Contracts\Quote';
+        return Quote::class;
     }
 
     /**
-     * @param array $data
+     * Create.
+     *
      * @return \Webkul\Quote\Contracts\Quote
      */
     public function create(array $data)
     {
         $quote = parent::create($data);
 
-        $this->attributeValueRepository->save($data, $quote->id);
+        $this->attributeValueRepository->save(array_merge($data, [
+            'entity_id' => $quote->id,
+        ]));
 
         foreach ($data['items'] as $itemData) {
             $this->quoteItemRepository->create(array_merge($itemData, [
@@ -74,22 +70,42 @@ class QuoteRepository extends Repository
     }
 
     /**
-     * @param array  $data
-     * @param int    $id
-     * @param string $attribute
+     * Update.
+     *
+     * @param  int  $id
+     * @param  array  $attribute
      * @return \Webkul\Quote\Contracts\Quote
      */
-    public function update(array $data, $id, $attribute = "id")
+    public function update(array $data, $id, $attributes = [])
     {
         $quote = $this->find($id);
 
-        parent::update($data, $id, $attribute);
+        parent::update($data, $id);
 
-        $this->attributeValueRepository->save($data, $id);
+        /**
+         * If attributes are provided then only save the provided attributes and return.
+         */
+        if (! empty($attributes)) {
+            $conditions = ['entity_type' => $data['entity_type']];
 
-        if (! isset($data['_method'])) {
+            if (isset($data['quick_add'])) {
+                $conditions['quick_add'] = 1;
+            }
+
+            $attributes = $this->attributeRepository->where($conditions)
+                ->whereIn('code', $attributes)
+                ->get();
+
+            $this->attributeValueRepository->save(array_merge($data, [
+                'entity_id' => $quote->id,
+            ]), $attributes);
+
             return $quote;
         }
+
+        $this->attributeValueRepository->save(array_merge($data, [
+            'entity_id' => $quote->id,
+        ]));
 
         $previousItemIds = $quote->items->pluck('id');
 
@@ -117,15 +133,15 @@ class QuoteRepository extends Repository
     }
 
     /**
-     * Retrieves customers count based on date
+     * Retrieves customers count based on date.
      *
      * @return number
      */
     public function getQuotesCount($startDate, $endDate)
     {
         return $this
-                ->whereBetween('created_at', [$startDate, $endDate])
-                ->get()
-                ->count();
+            ->whereBetween('created_at', [$startDate, $endDate])
+            ->get()
+            ->count();
     }
 }

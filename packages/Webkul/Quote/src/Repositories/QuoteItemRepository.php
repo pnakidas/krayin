@@ -9,26 +9,14 @@ use Webkul\Product\Repositories\ProductRepository;
 class QuoteItemRepository extends Repository
 {
     /**
-     * ProductRepository object
-     *
-     * @var \Webkul\Product\Repositories\ProductRepository
-     */
-    protected $productRepository;
-
-    /**
      * Create a new repository instance.
      *
-     * @param  \Webkul\Product\Repositories\ProductRepository  $productRepository
-     * @param  \Illuminate\Container\Container  $container
      * @return void
      */
     public function __construct(
-        ProductRepository $productRepository,
+        protected ProductRepository $productRepository,
         Container $container
-    )
-    {
-        $this->productRepository = $productRepository;
-
+    ) {
         parent::__construct($container);
     }
 
@@ -37,17 +25,20 @@ class QuoteItemRepository extends Repository
      *
      * @return mixed
      */
-    function model()
+    public function model()
     {
         return 'Webkul\Quote\Contracts\QuoteItem';
     }
 
     /**
-     * @param array $data
-     * @return \Webkul\Quote\Contracts\QuoteItem
+     * @return mixed
      */
     public function create(array $data)
     {
+        if (empty($data['product_id'])) {
+            return null;
+        }
+
         $product = $this->productRepository->findOrFail($data['product_id']);
 
         $quoteItem = parent::create(array_merge($data, [
@@ -59,12 +50,11 @@ class QuoteItemRepository extends Repository
     }
 
     /**
-     * @param array  $data
-     * @param int    $id
-     * @param string $attribute
+     * @param  int  $id
+     * @param  string  $attribute
      * @return \Webkul\Quote\Contracts\QuoteItem
      */
-    public function update(array $data, $id, $attribute = "id")
+    public function update(array $data, $id, $attribute = 'id')
     {
         $product = $this->productRepository->findOrFail($data['product_id']);
 

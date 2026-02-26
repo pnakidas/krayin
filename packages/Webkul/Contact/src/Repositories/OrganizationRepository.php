@@ -3,70 +3,117 @@
 namespace Webkul\Contact\Repositories;
 
 use Illuminate\Container\Container;
-use Webkul\Core\Eloquent\Repository;
+use Illuminate\Support\Facades\DB;
+use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
+use Webkul\Contact\Contracts\Organization;
+use Webkul\Core\Eloquent\Repository;
 
 class OrganizationRepository extends Repository
 {
     /**
-     * AttributeValueRepository object
-     *
-     * @var \Webkul\Attribute\Repositories\AttributeValueRepository
-     */
-    protected $attributeValueRepository;
-
-    /**
      * Create a new repository instance.
      *
-     * @param  \Webkul\Attribute\Repositories\AttributeValueRepository $attributeValueRepository
-     * @param  \Illuminate\Container\Container  $container
      * @return void
      */
     public function __construct(
-        AttributeValueRepository $attributeValueRepository,
+        protected AttributeRepository $attributeRepository,
+        protected AttributeValueRepository $attributeValueRepository,
         Container $container
-    )
-    {
-        $this->attributeValueRepository = $attributeValueRepository;
-
+    ) {
         parent::__construct($container);
     }
-    
+
     /**
-     * Specify Model class name
+     * Specify model class name.
      *
      * @return mixed
      */
-    function model()
+    public function model()
     {
-        return 'Webkul\Contact\Contracts\Organization';
+        return Organization::class;
     }
 
     /**
-     * @param array $data
+     * Create.
+     *
      * @return \Webkul\Contact\Contracts\Organization
      */
     public function create(array $data)
     {
+        if (isset($data['user_id'])) {
+            $data['user_id'] = $data['user_id'] ?: null;
+        }
+
         $organization = parent::create($data);
 
-        $this->attributeValueRepository->save($data, $organization->id);
+        $this->attributeValueRepository->save(array_merge($data, [
+            'entity_id' => $organization->id,
+        ]));
 
         return $organization;
     }
 
     /**
-     * @param array  $data
-     * @param int    $id
-     * @param string $attribute
+     * Update.
+     *
+     * @param  int  $id
+     * @param  array  $attribute
      * @return \Webkul\Contact\Contracts\Organization
      */
-    public function update(array $data, $id, $attribute = "id")
+    public function update(array $data, $id, $attributes = [])
     {
+        if (isset($data['user_id'])) {
+            $data['user_id'] = $data['user_id'] ?: null;
+        }
+
         $organization = parent::update($data, $id);
 
-        $this->attributeValueRepository->save($data, $id);
+        /**
+         * If attributes are provided then only save the provided attributes and return.
+         */
+        if (! empty($attributes)) {
+            $conditions = ['entity_type' => $data['entity_type']];
+
+            if (isset($data['quick_add'])) {
+                $conditions['quick_add'] = 1;
+            }
+
+            $attributes = $this->attributeRepository->where($conditions)
+                ->whereIn('code', $attributes)
+                ->get();
+
+            $this->attributeValueRepository->save(array_merge($data, [
+                'entity_id' => $organization->id,
+            ]), $attributes);
+
+            return $organization;
+        }
+
+        $this->attributeValueRepository->save(array_merge($data, [
+            'entity_id' => $organization->id,
+        ]));
 
         return $organization;
+    }
+
+    /**
+     * Delete organization and it's persons.
+     *
+     * @param  int  $id
+     * @return @void
+     */
+    public function delete($id)
+    {
+        $organization = $this->findOrFail($id);
+
+        DB::transaction(function () use ($organization, $id) {
+            $this->attributeValueRepository->deleteWhere([
+                'entity_id'   => $id,
+                'entity_type' => 'organizations',
+            ]);
+
+            $organization->delete();
+        });
     }
 }

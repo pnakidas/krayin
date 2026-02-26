@@ -8,32 +8,35 @@
     ],
     "license": "MIT",
     "require": {
-        "php": "^8.1",
-        "barryvdh/laravel-dompdf": "^1.0",
-        "diglactic/laravel-breadcrumbs": "^7.0",
-        "doctrine/dbal": "^3.1",
-        "fruitcake/laravel-cors": "^2.0",
+        "php": "^8.2",
+        "barryvdh/laravel-dompdf": "^2.0.0",
+        "diglactic/laravel-breadcrumbs": "^8.0",
+        "doctrine/dbal": "^3.0",
         "guzzlehttp/guzzle": "^7.0.1",
+        "khaled.alshamaa/ar-php": "^6.3",
         "konekt/concord": "^1.10",
-        "krayin/rest-api": "dev-master",
-        "laravel/framework": "^9.0",
-        "laravel/sanctum": "^2.12",
+        "laravel/framework": "^10.0",
+        "laravel/sanctum": "^3.2",
         "laravel/tinker": "^2.5",
-        "laravel/ui": "^3.2",
+        "laravel/ui": "^4.5",
         "maatwebsite/excel": "^3.1",
-        "prettus/l5-repository": "^2.7.9"
+        "mpdf/mpdf": "^8.2",
+        "prettus/l5-repository": "^2.7.9",
+        "smalot/pdfparser": "^2.11",
+        "webklex/laravel-imap": "^5.3"
     },
     "require-dev": {
         "barryvdh/laravel-debugbar": "^3.6",
-        "spatie/laravel-ignition": "^1.0",
         "fakerphp/faker": "^1.9.1",
         "krayin/krayin-package-generator": "dev-master",
+        "laravel/pint": "^1.16",
         "laravel/sail": "^1.0.1",
         "mockery/mockery": "^1.4.2",
-        "nunomaduro/collision": "^6.1",
-        "pestphp/pest": "^1.21",
-        "pestphp/pest-plugin-laravel": "^1.1",
-        "phpunit/phpunit": "^9.3.3"
+        "nunomaduro/collision": "^7.0",
+        "pestphp/pest": "^2.6",
+        "pestphp/pest-plugin-laravel": "^2.1",
+        "phpunit/phpunit": "^10.0",
+        "spatie/laravel-ignition": "^2.0"
     },
     "config": {
         "optimize-autoloader": true,
@@ -58,16 +61,20 @@
             "Webkul\\Attribute\\": "packages/Webkul/Attribute/src",
             "Webkul\\Contact\\": "packages/Webkul/Contact/src",
             "Webkul\\Core\\": "packages/Webkul/Core/src",
+            "Webkul\\DataGrid\\": "packages/Webkul/DataGrid/src",
+            "Webkul\\DataTransfer\\": "packages/Webkul/DataTransfer/src",
             "Webkul\\Email\\": "packages/Webkul/Email/src",
             "Webkul\\EmailTemplate\\": "packages/Webkul/EmailTemplate/src",
+            "Webkul\\Marketing\\": "packages/Webkul/Marketing/src",
+            "Webkul\\Installer\\": "packages/Webkul/Installer/src",
             "Webkul\\Lead\\": "packages/Webkul/Lead/src",
             "Webkul\\Product\\": "packages/Webkul/Product/src",
             "Webkul\\Quote\\": "packages/Webkul/Quote/src",
             "Webkul\\Tag\\": "packages/Webkul/Tag/src",
-            "Webkul\\UI\\": "packages/Webkul/UI/src",
             "Webkul\\User\\": "packages/Webkul/User/src",
+            "Webkul\\Warehouse\\": "packages/Webkul/Warehouse/src",
             "Webkul\\WebForm\\": "packages/Webkul/WebForm/src",
-            "Webkul\\Workflow\\": "packages/Webkul/Workflow/src"
+            "Webkul\\Automation\\": "packages/Webkul/Automation/src"
         }
     },
     "autoload-dev": {
@@ -75,7 +82,14 @@
             "Tests\\": "tests/"
         }
     },
-    "minimum-stability": "dev",
+    "repositories": [{
+        "type": "path",
+        "url": "packages/*/*",
+        "options": {
+            "symlink": true
+        }
+    }],
+    "minimum-stability": "stable",
     "prefer-stable": true,
     "scripts": {
         "post-autoload-dump": [

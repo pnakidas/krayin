@@ -2,27 +2,14 @@
 
 namespace Webkul\Admin\Http\Requests;
 
+use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
-use Webkul\Core\Contracts\Validations\Decimal;
 use Webkul\Attribute\Repositories\AttributeRepository;
 use Webkul\Attribute\Repositories\AttributeValueRepository;
+use Webkul\Core\Contracts\Validations\Decimal;
 
 class LeadForm extends FormRequest
 {
-    /**
-     * AttributeRepository object
-     *
-     * @var \Webkul\Attribute\Repositories\AttributeRepository
-     */
-    protected $attributeRepository;
-
-    /**
-     * AttributeValueRepository object
-     *
-     * @var \Webkul\Attribute\Repositories\AttributeValueRepository
-     */
-    protected $attributeValueRepository;
-
     /**
      * @var array
      */
@@ -31,19 +18,12 @@ class LeadForm extends FormRequest
     /**
      * Create a new form request instance.
      *
-     * @param  \Webkul\Attribute\Repositories\AttributeRepository $attributeRepository
-     * @param  \Webkul\Attribute\Repositories\AttributeValueRepository $attributeValueRepository
      * @return void
      */
     public function __construct(
-        AttributeRepository $attributeRepository,
-        AttributeValueRepository $attributeValueRepository
-    )
-    {
-        $this->attributeRepository = $attributeRepository;
-
-        $this->attributeValueRepository = $attributeValueRepository;
-    }
+        protected AttributeRepository $attributeRepository,
+        protected AttributeValueRepository $attributeValueRepository
+    ) {}
 
     /**
      * Determine if the product is authorized to make this request.
@@ -63,7 +43,7 @@ class LeadForm extends FormRequest
     public function rules()
     {
         foreach (['leads', 'persons'] as $key => $entityType) {
-            $attributes = $this->attributeRepository->scopeQuery(function($query) use($entityType) {
+            $attributes = $this->attributeRepository->scopeQuery(function ($query) use ($entityType) {
                 $attributeCodes = $entityType == 'persons'
                     ? array_keys(request('person') ?? [])
                     : array_keys(request()->all());
@@ -80,36 +60,36 @@ class LeadForm extends FormRequest
 
             foreach ($attributes as $attribute) {
                 if ($entityType == 'persons') {
-                    $attribute->code = 'person.' . $attribute->code;
+                    $attribute->code = 'person.'.$attribute->code;
                 }
 
                 $validations = [];
 
                 if ($attribute->type == 'boolean') {
                     continue;
-                } else if ($attribute->type == 'address') {
+                } elseif ($attribute->type == 'address') {
                     if (! $attribute->is_required) {
                         continue;
                     }
 
                     $validations = [
-                        $attribute->code . '.address'  => 'required',
-                        $attribute->code . '.country'  => 'required',
-                        $attribute->code . '.state'    => 'required',
-                        $attribute->code . '.city'     => 'required',
-                        $attribute->code . '.postcode' => 'required',
+                        $attribute->code.'.address'  => 'required',
+                        $attribute->code.'.country'  => 'required',
+                        $attribute->code.'.state'    => 'required',
+                        $attribute->code.'.city'     => 'required',
+                        $attribute->code.'.postcode' => 'required',
                     ];
-                } else if ($attribute->type == 'email') {
+                } elseif ($attribute->type == 'email') {
                     $validations = [
                         $attribute->code              => [$attribute->is_required ? 'required' : 'nullable'],
-                        $attribute->code . '.*.value' => [$attribute->is_required ? 'required' : 'nullable', 'email'],
-                        $attribute->code . '.*.label' => $attribute->is_required ? 'required' : 'nullable',
+                        $attribute->code.'.*.value'   => [$attribute->is_required ? 'required' : 'nullable', 'email'],
+                        $attribute->code.'.*.label'   => $attribute->is_required ? 'required' : 'nullable',
                     ];
-                } else if ($attribute->type == 'phone') {
+                } elseif ($attribute->type == 'phone') {
                     $validations = [
                         $attribute->code              => [$attribute->is_required ? 'required' : 'nullable'],
-                        $attribute->code . '.*.value' => [$attribute->is_required ? 'required' : 'nullable'],
-                        $attribute->code . '.*.label' => $attribute->is_required ? 'required' : 'nullable',
+                        $attribute->code.'.*.value'   => [$attribute->is_required ? 'required' : 'nullable'],
+                        $attribute->code.'.*.label'   => $attribute->is_required ? 'required' : 'nullable',
                     ];
                 } else {
                     $validations[$attribute->code] = [$attribute->is_required ? 'required' : 'nullable'];
@@ -129,15 +109,15 @@ class LeadForm extends FormRequest
 
                 if ($attribute->is_unique) {
                     array_push($validations[in_array($attribute->type, ['email', 'phone'])
-                        ? $attribute->code . '.*.value'
+                        ? $attribute->code.'.*.value'
                         : $attribute->code
                     ], function ($field, $value, $fail) use ($attribute, $entityType) {
                         if (! $this->attributeValueRepository->isValueUnique(
-                                $entityType == 'persons' ? request('person.id') : $this->id,
-                                $attribute->entity_type,
-                                $attribute,
-                                request($field)
-                            )
+                            $entityType == 'persons' ? request('person.id') : $this->id,
+                            $attribute->entity_type,
+                            $attribute,
+                            request($field)
+                        )
                         ) {
                             $fail('The value has already been taken.');
                         }
@@ -148,6 +128,31 @@ class LeadForm extends FormRequest
             }
         }
 
-        return $this->rules;
+        $this->rules['expected_close_date'] = [
+            'date_format:Y-m-d',
+            'after:'.Carbon::yesterday()->format('Y-m-d'),
+        ];
+
+        return [
+            ...$this->rules,
+            'products'              => 'array',
+            'products.*.product_id' => 'sometimes|required|exists:products,id',
+            'products.*.name'       => 'required_with:products.*.product_id',
+            'products.*.price'      => 'required_with:products.*.product_id',
+            'products.*.quantity'   => 'required_with:products.*.product_id',
+        ];
+    }
+
+    /**
+     * Get the validation messages that apply to the request.
+     */
+    public function messages(): array
+    {
+        return [
+            'products.*.product_id.exists'      => trans('admin::app.leads.selected-product-not-exist'),
+            'products.*.name.required_with'     => trans('admin::app.leads.product-name-required'),
+            'products.*.price.required_with'    => trans('admin::app.leads.product-price-required'),
+            'products.*.quantity.required_with' => trans('admin::app.leads.product-quantity-required'),
+        ];
     }
 }

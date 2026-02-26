@@ -1,114 +1,109 @@
-@push('scripts')
-    <script type="text/x-template" id="contact-component-template">
-        <div class="contact-controls">
-            
-            <div class="form-group" :class="[errors.has('{!! $formScope ?? '' !!}person[name]') ? 'has-error' : '']">
-                <label for="person[name]" class="required">{{ __('admin::app.leads.name') }}</label>
+{!! view_render_event('admin.leads.create.contact_person.form_controls.before') !!}
 
-                <input
-                    type="text"
-                    name="person[name]"
-                    class="control"
-                    id="person[name]"
-                    v-model="person.name"
-                    autocomplete="off"
-                    placeholder="{{ __('admin::app.common.start-typing') }}"
-                    v-validate="'required'"
-                    data-vv-as="&quot;{{ __('admin::app.leads.name') }}&quot;"
-                    v-on:keyup="search"
-                />
+<v-contact-component :data="person"></v-contact-component>
 
-                <input
-                    type="hidden"
-                    name="person[id]"
-                    v-model="person.id"
-                    v-validate="'required'"
-                    data-vv-as="&quot;{{ __('admin::app.leads.name') }}&quot;"
-                    v-if="person.id"
-                />
+{!! view_render_event('admin.leads.create.contact_person.form_controls.after') !!}
 
-                <div class="lookup-results" v-if="state == ''">
-                    <ul>
-                        <li v-for='(person, index) in persons' @click="addPerson(person)">
-                            <span>@{{ person.name }}</span>
-                        </li>
+@pushOnce('scripts')
+    <script
+        type="text/x-template"
+        id="v-contact-component-template"
+    >
+        <!-- Person Search Lookup -->
+        <x-admin::form.control-group>
+            <x-admin::form.control-group.label class="required">
+                @lang('admin::app.leads.common.contact.name')
+            </x-admin::form.control-group.label>
 
-                        <li v-if="! persons.length && person['name'].length && ! is_searching">
-                            <span>{{ __('admin::app.common.no-result-found') }}</span>
-                        </li>
+            <x-admin::lookup
+                ::src="src"
+                name="person[id]"
+                ::params="params"
+                ::rules="nameValidationRule"
+                :label="trans('admin::app.leads.common.contact.name')"
+                ::value="{id: person.id, name: person.name}"
+                :placeholder="trans('admin::app.leads.common.contact.name')"
+                @on-selected="addPerson"
+                :can-add-new="true"
+            />
 
-                        <li class="action" v-if="person['name'].length && ! is_searching" @click="addAsNew()">
-                            <span>
-                                + {{ __('admin::app.common.add-as') }}
-                            </span> 
-                        </li>
-                    </ul>
-                </div>
+            <x-admin::form.control-group.control
+                type="hidden"
+                name="person[name]"
+                v-model="person.name"
+                v-if="person.name"
+            />
 
-                <span class="control-error" v-if="errors.has('{!! $formScope ?? '' !!}person[name]')">
-                    @{{ errors.first('{!! $formScope ?? '' !!}person[name]') }}
-                </span>
-            </div>
+            <x-admin::form.control-group.error control-name="person[id]" />
+        </x-admin::form.control-group>
 
-            <div class="form-group email">
-                <label for="person[emails]" class="required">{{ __('admin::app.leads.email') }}</label>
+        <!-- Person Email -->
+        <x-admin::form.control-group>
+            <x-admin::form.control-group.label class="required">
+                @lang('admin::app.leads.common.contact.email')
+            </x-admin::form.control-group.label>
 
-                @include('admin::common.custom-attributes.edit.email', ['formScope' => $formScope ?? ''])
-                    
-                <email-component
-                    :attribute="{'code': 'person[emails]', 'name': 'Email'}"
-                    :data="person.emails"
-                    validations="required|email"
-                ></email-component>
-            </div>
+            <x-admin::attributes.edit.email />
 
-            <div class="form-group contact-numbers">
-                <label for="person[contact_numbers]">{{ __('admin::app.leads.contact-numbers') }}</label>
+            <v-email-component
+                :attribute="{'id': person?.id, 'code': 'person[emails]', 'name': 'Email'}"
+                validations="required"
+                :value="person.emails"
+                :is-disabled="person?.id ? true : false"
+            ></v-email-component>
+        </x-admin::form.control-group>
 
-                @include('admin::common.custom-attributes.edit.phone', ['formScope' => $formScope ?? ''])
-                    
-                <phone-component
-                    :attribute="{'code': 'person[contact_numbers]', 'name': 'Contact Numbers'}"
-                    :data="person.contact_numbers"
-                ></phone-component>
-            </div>
+        <!-- Person Contact Numbers -->
+        <x-admin::form.control-group>
+            <x-admin::form.control-group.label>
+                @lang('admin::app.leads.common.contact.contact-number')
+            </x-admin::form.control-group.label>
 
-            <div class="form-group organization">
-                <label for="address">{{ __('admin::app.leads.organization') }}</label>
+            <x-admin::attributes.edit.phone />
 
-                @php
-                    $organizationAttribute = app('Webkul\Attribute\Repositories\AttributeRepository')->findOneWhere([
-                        'entity_type' => 'persons',
-                        'code'        => 'organization_id'
-                    ]);
+            <v-phone-component
+                :attribute="{'id': person?.id, 'code': 'person[contact_numbers]', 'name': 'Contact Numbers'}"
+                :value="person.contact_numbers"
+                :is-disabled="person?.id ? true : false"
+            ></v-phone-component>
+        </x-admin::form.control-group>
 
-                    $organizationAttribute->code = 'person[' . $organizationAttribute->code . ']';
-                @endphp
+        <!-- Person Organization -->
+        <x-admin::form.control-group>
+            <x-admin::form.control-group.label>
+                @lang('admin::app.leads.common.contact.organization')
+            </x-admin::form.control-group.label>
 
-                @include('admin::common.custom-attributes.edit.lookup')
+            @php
+                $organizationAttribute = app('Webkul\Attribute\Repositories\AttributeRepository')->findOneWhere([
+                    'entity_type' => 'persons',
+                    'code'        => 'organization_id'
+                ]);
 
-                <lookup-component
-                    :attribute='@json($organizationAttribute)'
-                    :data="person.organization"
-                ></lookup-component>
-            </div>
-        </div>
+                $organizationAttribute->code = 'person[' . $organizationAttribute->code . ']';
+            @endphp
+
+            <x-admin::attributes.edit.lookup />
+
+            <v-lookup-component
+                :key="person.organization?.id"
+                :attribute='@json($organizationAttribute)'
+                :value="person.organization"
+                :is-disabled="person?.id ? true : false"
+                can-add-new="true"
+            ></v-lookup-component>
+        </x-admin::form.control-group>
     </script>
 
-    <script>
-        Vue.component('contact-component', {
+    <script type="module">
+        app.component('v-contact-component', {
+            template: '#v-contact-component-template',
 
-            template: '#contact-component-template',
-    
             props: ['data'],
 
-            inject: ['$validator'],
-
-            data: function () {
+            data () {
                 return {
                     is_searching: false,
-
-                    state: this.data ? 'old': '',
 
                     person: this.data ? this.data : {
                         'name': ''
@@ -118,47 +113,29 @@
                 }
             },
 
-            methods: {
-                search: debounce(function () {
-                    this.state = '';
-
-                    this.person = {
-                        'name': this.person['name']
-                    };
-
-                    this.is_searching = true;
-
-                    if (this.person['name'].length < 2) {
-                        this.persons = [];
-
-                        this.is_searching = false;
-
-                        return;
-                    }
-
-                    var self = this;
-                    
-                    this.$http.get("{{ route('admin.contacts.persons.search') }}", {params: {query: this.person['name']}})
-                        .then (function(response) {
-                            self.persons = response.data;
-
-                            self.is_searching = false;
-                        })
-                        .catch (function (error) {
-                            self.is_searching = false;
-                        })
-                }, 500),
-
-                addPerson: function(result) {
-                    this.state = 'old';
-
-                    this.person = result;
+            computed: {
+                src() {
+                    return "{{ route('admin.contacts.persons.search') }}";
                 },
 
-                addAsNew: function() {
-                    this.state = 'new';
+                params() {
+                    return {
+                        params: {
+                            query: this.person['name']
+                        }
+                    }
+                },
+
+                nameValidationRule() {
+                    return this.person.name ? '' : 'required';
                 }
+            },
+
+            methods: {
+                addPerson (person) {
+                    this.person = person;
+                },
             }
         });
     </script>
-@endpush
+@endPushOnce

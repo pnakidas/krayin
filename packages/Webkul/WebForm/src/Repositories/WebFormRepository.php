@@ -5,46 +5,35 @@ namespace Webkul\WebForm\Repositories;
 use Illuminate\Container\Container;
 use Illuminate\Support\Str;
 use Webkul\Core\Eloquent\Repository;
+use Webkul\WebForm\Contracts\WebForm;
 
 class WebFormRepository extends Repository
 {
     /**
-     * WebFormAttributeRepository instance.
-     *
-     * @var \Webkul\WebForm\Repositories\WebFormAttributeRepository
-     */
-    protected $webFormAttributeRepository;
-
-    /**
      * Create a new repository instance.
      *
-     * @param  \Webkul\WebForm\Repositories\WebFormAttributeRepository  $webFormAttributeRepository
-     * @param  \Illuminate\Container\Container  $container
      * @return void
      */
     public function __construct(
-        WebFormAttributeRepository $webFormAttributeRepository,
+        protected WebFormAttributeRepository $webFormAttributeRepository,
         Container $container
     ) {
-        $this->webFormAttributeRepository = $webFormAttributeRepository;
-
         parent::__construct($container);
     }
 
     /**
-     * Specify Model class name
+     * Specify model class name.
      *
      * @return mixed
      */
-    function model()
+    public function model()
     {
-        return 'Webkul\WebForm\Contracts\WebForm';
+        return WebForm::class;
     }
 
     /**
      * Create Web Form.
      *
-     * @param  array  $data
      * @return \Webkul\WebForm\Contracts\WebForm
      */
     public function create(array $data)
@@ -65,12 +54,11 @@ class WebFormRepository extends Repository
     /**
      * Update Web Form.
      *
-     * @param  array  $data
      * @param  int  $id
      * @param  string  $attribute
      * @return \Webkul\WebForm\Contracts\WebForm
      */
-    public function update(array $data, $id, $attribute = "id")
+    public function update(array $data, $id, $attribute = 'id')
     {
         $webForm = parent::update($data, $id);
 

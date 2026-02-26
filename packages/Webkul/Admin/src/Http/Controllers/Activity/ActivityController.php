@@ -2,150 +2,103 @@
 
 namespace Webkul\Admin\Http\Controllers\Activity;
 
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
-use Carbon\Carbon;
+use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use Webkul\Activity\Repositories\ActivityRepository;
 use Webkul\Activity\Repositories\FileRepository;
+use Webkul\Admin\DataGrids\Activity\ActivityDataGrid;
 use Webkul\Admin\Http\Controllers\Controller;
-use Webkul\Contact\Repositories\PersonRepository;
-use Webkul\Lead\Repositories\LeadRepository;
-use Webkul\User\Repositories\UserRepository;
+use Webkul\Admin\Http\Requests\MassDestroyRequest;
+use Webkul\Admin\Http\Requests\MassUpdateRequest;
+use Webkul\Admin\Http\Resources\ActivityResource;
+use Webkul\Attribute\Repositories\AttributeRepository;
 
 class ActivityController extends Controller
 {
     /**
-     * FileRepository object
-     *
-     * @var \Webkul\Activity\Repositories\FileRepository
-     */
-    protected $fileRepository;
-
-    /**
-     * ActivityRepository object
-     *
-     * @var \Webkul\Activity\Repositories\ActivityRepository
-     */
-    protected $activityRepository;
-
-    /**
-     * LeadRepository object
-     *
-     * @var \Webkul\Lead\Repositories\LeadRepository
-     */
-    protected $leadRepository;
-
-    /**
-     * UserRepository object
-     *
-     * @var \Webkul\User\Repositories\UserRepository
-     */
-    protected $userRepository;
-
-    /**
-     * PersonRepository object
-     *
-     * @var \Webkul\Contact\Repositories\PersonRepository
-     */
-    protected $personRepository;
-
-    /**
      * Create a new controller instance.
-     *
-     * @param \Webkul\Activity\Repositories\ActivityRepository  $activityRepository
-     * @param \Webkul\Activity\Repositories\FileRepository  $fileRepository
-     * @param \Webkul\Activity\Repositories\LeadRepository  $leadRepository
-     * @param \Webkul\User\Repositories\UserRepository  $userRepository
-     * @param \Webkul\Contact\Repositories\PersonRepository  $personRepository
      *
      * @return void
      */
     public function __construct(
-        ActivityRepository $activityRepository,
-        FileRepository $fileRepository,
-        LeadRepository $leadRepository,
-        UserRepository $userRepository,
-        PersonRepository $personRepository
-    ) {
-        $this->activityRepository = $activityRepository;
-
-        $this->fileRepository = $fileRepository;
-
-        $this->leadRepository = $leadRepository;
-
-        $this->userRepository = $userRepository;
-
-        $this->personRepository = $personRepository;
-    }
+        protected ActivityRepository $activityRepository,
+        protected FileRepository $fileRepository,
+        protected AttributeRepository $attributeRepository,
+    ) {}
 
     /**
      * Display a listing of the resource.
-     *
-     * @return \Illuminate\View\View
      */
-    public function index()
+    public function index(): View
     {
         return view('admin::activities.index');
     }
 
     /**
      * Returns a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
      */
-    public function get()
+    public function get(): JsonResponse
     {
-        if (request('view_type')) {
-            $startDate = request()->get('startDate')
-                        ? Carbon::createFromTimeString(request()->get('startDate') . " 00:00:01")
-                        : Carbon::now()->startOfWeek()->format('Y-m-d H:i:s');
-
-            $endDate = request()->get('endDate')
-                    ? Carbon::createFromTimeString(request()->get('endDate') . " 23:59:59")
-                    : Carbon::now()->endOfWeek()->format('Y-m-d H:i:s');
-
-            $activities = $this->activityRepository->getActivities([$startDate, $endDate])->toArray();
-
-            return response()->json([
-                'activities' => $activities,
-            ]);
-        } else {
-            return app(\Webkul\Admin\DataGrids\Activity\ActivityDataGrid::class)->toJson();
+        if (! request()->has('view_type')) {
+            return datagrid(ActivityDataGrid::class)->process();
         }
-    }
 
-    /**
-     * Check if activity duration is overlapping with another activity duration.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function checkIfOverlapping()
-    {
-        $isOverlapping = $this->activityRepository->isDurationOverlapping(
-            request('schedule_from'),
-            request('schedule_to'),
-            request('participants'),
-            request('id')
-        );
+        $startDate = request()->get('startDate')
+            ? Carbon::createFromTimeString(request()->get('startDate').' 00:00:01')
+            : Carbon::now()->startOfWeek()->format('Y-m-d H:i:s');
+
+        $endDate = request()->get('endDate')
+            ? Carbon::createFromTimeString(request()->get('endDate').' 23:59:59')
+            : Carbon::now()->endOfWeek()->format('Y-m-d H:i:s');
+
+        $activities = $this->activityRepository->getActivities([$startDate, $endDate])->toArray();
 
         return response()->json([
-            'overlapping' => $isOverlapping,
+            'activities' => $activities,
         ]);
     }
 
     /**
      * Store a newly created resource in storage.
-     *
-     * @return \Illuminate\Http\Response
      */
-    public function store()
+    public function store(): RedirectResponse|JsonResponse
     {
         $this->validate(request(), [
             'type'          => 'required',
             'comment'       => 'required_if:type,note',
-            'schedule_from' => 'required_unless:type,note',
-            'schedule_to'   => 'required_unless:type,note',
+            'schedule_from' => 'required_unless:type,note,file',
+            'schedule_to'   => 'required_unless:type,note,file',
+            'file'          => 'required_if:type,file',
         ]);
+
+        if (request('type') === 'meeting') {
+            /**
+             * Check if meeting is overlapping with other meetings.
+             */
+            $isOverlapping = $this->activityRepository->isDurationOverlapping(
+                request()->input('schedule_from'),
+                request()->input('schedule_to'),
+                request()->input('participants'),
+                request()->input('id')
+            );
+
+            if ($isOverlapping) {
+                if (request()->ajax()) {
+                    return response()->json([
+                        'message' => trans('admin::app.activities.overlapping-error'),
+                    ], 400);
+                }
+
+                session()->flash('success', trans('admin::app.activities.overlapping-error'));
+
+                return redirect()->back();
+            }
+        }
 
         Event::dispatch('activity.create.before');
 
@@ -154,130 +107,87 @@ class ActivityController extends Controller
             'user_id' => auth()->guard('user')->user()->id,
         ]));
 
-        if (request('participants')) {
-            if (is_array(request('participants.users'))) {
-                foreach (request('participants.users') as $userId) {
-                    $activity->participants()->create([
-                        'user_id' => $userId
-                    ]);
-                }
-            }
-
-            if (is_array(request('participants.persons'))) {
-                foreach (request('participants.persons') as $personId) {
-                    $activity->participants()->create([
-                        'person_id' => $personId,
-                    ]);
-                }
-            }
-        }
-
-        if (request('lead_id')) {
-            $lead = $this->leadRepository->find(request('lead_id'));
-
-            $lead->activities()->attach($activity->id);
-        }
-
         Event::dispatch('activity.create.after', $activity);
 
-        session()->flash('success', trans('admin::app.activities.create-success', ['type' => trans('admin::app.activities.' . $activity->type)]));
+        if (request()->ajax()) {
+            return response()->json([
+                'data'    => new ActivityResource($activity),
+                'message' => trans('admin::app.activities.create-success'),
+            ]);
+        }
+
+        session()->flash('success', trans('admin::app.activities.create-success'));
 
         return redirect()->back();
     }
 
     /**
      * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\View\View
      */
-    public function edit($id)
+    public function edit(int $id): View
     {
         $activity = $this->activityRepository->findOrFail($id);
 
-        return view('admin::activities.edit', compact('activity'));
+        $leadId = old('lead_id') ?? optional($activity->leads()->first())->id;
+
+        $lookUpEntityData = $this->attributeRepository->getLookUpEntity('leads', $leadId);
+
+        return view('admin::activities.edit', compact('activity', 'lookUpEntityData'));
     }
 
     /**
      * Update the specified resource in storage.
-     *
-     * @param int  $id
-     * @return \Illuminate\Http\Response
      */
-    public function update($id)
+    public function update($id): RedirectResponse|JsonResponse
     {
         Event::dispatch('activity.update.before', $id);
 
-        $activity = $this->activityRepository->update(request()->all(), $id);
+        $data = request()->all();
 
-        if (request('participants')) {
-            $activity->participants()->delete();
+        $activity = $this->activityRepository->update($data, $id);
 
-            if (is_array(request('participants.users'))) {
-                foreach (request('participants.users') as $userId) {
-                    $activity->participants()->create([
-                        'user_id' => $userId
-                    ]);
-                }
-            }
-
-            if (is_array(request('participants.persons'))) {
-                foreach (request('participants.persons') as $personId) {
-                    $activity->participants()->create([
-                        'person_id' => $personId,
-                    ]);
-                }
-            }
-        }
-
-        if (request('lead_id')) {
-            $lead = $this->leadRepository->find(request('lead_id'));
-
-            if (! $lead->activities->contains($id)) {
-                $lead->activities()->attach($id);
-            }
+        /**
+         * We will not use `empty` directly here because `lead_id` can be a blank string
+         * from the activity form. However, on the activity view page, we are only updating the
+         * `is_done` field, so `lead_id` will not be present in that case.
+         */
+        if (isset($data['lead_id'])) {
+            $activity->leads()->sync(
+                ! empty($data['lead_id'])
+                    ? [$data['lead_id']]
+                    : []
+            );
         }
 
         Event::dispatch('activity.update.after', $activity);
 
         if (request()->ajax()) {
             return response()->json([
-                'message' => trans('admin::app.activities.update-success', ['type' => trans('admin::app.activities.' . $activity->type)]),
+                'data'    => new ActivityResource($activity),
+                'message' => trans('admin::app.activities.update-success'),
             ]);
-        } else {
-            session()->flash('success', trans('admin::app.activities.update-success', ['type' => trans('admin::app.activities.' . $activity->type)]));
-
-            return redirect()->route('admin.activities.index');
         }
+
+        session()->flash('success', trans('admin::app.activities.update-success'));
+
+        return redirect()->route('admin.activities.index');
     }
 
     /**
      * Mass Update the specified resources.
-     *
-     * @return \Illuminate\Http\Response
      */
-    public function massUpdate()
+    public function massUpdate(MassUpdateRequest $massUpdateRequest): JsonResponse
     {
-        $count = 0;
+        $activities = $this->activityRepository->findWhereIn('id', $massUpdateRequest->input('indices'));
 
-        $data = request()->all();
-
-        foreach (request('rows') as $activityId) {
-            Event::dispatch('activity.update.before', $activityId);
+        foreach ($activities as $activity) {
+            Event::dispatch('activity.update.before', $activity->id);
 
             $activity = $this->activityRepository->update([
-                'is_done' => request('value'),
-            ], $activityId);
+                'is_done' => $massUpdateRequest->input('value'),
+            ], $activity->id);
 
             Event::dispatch('activity.update.after', $activity);
-
-            $count++;
-        }
-
-        if (! $count) {
-            return response()->json([
-                'message' => trans('admin::app.activities.mass-update-failed'),
-            ], 400);
         }
 
         return response()->json([
@@ -286,115 +196,66 @@ class ActivityController extends Controller
     }
 
     /**
-     * Search participants results
-     *
-     * @return \Illuminate\Http\Response
+     * Download file from storage.
      */
-    public function searchParticipants()
+    public function download(int $id): StreamedResponse
     {
-        $users = $this->userRepository->findWhere([
-            ['name', 'like', '%' . urldecode(request()->input('query')) . '%']
-        ]);
+        try {
+            $file = $this->fileRepository->findOrFail($id);
 
-        $persons = $this->personRepository->findWhere([
-            ['name', 'like', '%' . urldecode(request()->input('query')) . '%']
-        ]);
-
-        return response()->json([
-            'users'   => $users,
-            'persons' => $persons,
-        ]);
-    }
-
-    /**
-     * Upload files to storage
-     *
-     * @return \Illuminate\View\View
-     */
-    public function upload()
-    {
-        $this->validate(request(), [
-            'file' => 'required',
-        ]);
-
-        Event::dispatch('activities.file.create.before');
-
-        $file = $this->fileRepository->upload(request()->all());
-
-        if ($file) {
-            if ($leadId = request('lead_id')) {
-                $lead = $this->leadRepository->find($leadId);
-
-                $lead->activities()->attach($file->activity->id);
-            }
-
-            Event::dispatch('activities.file.create.after', $file);
-
-            session()->flash('success', trans('admin::app.activities.file-upload-success'));
-        } else {
-            session()->flash('error', trans('admin::app.activities.file-upload-error'));
+            return Storage::download($file->path);
+        } catch (\Exception $exception) {
+            abort(404);
         }
-
-        return redirect()->back();
-    }
-
-    /**
-     * Download file from storage
-     *
-     * @param  int  $id
-     * @return \Illuminate\View\View
-     */
-    public function download($id)
-    {
-        $file = $this->fileRepository->findOrFail($id);
-
-        return Storage::download($file->path);
     }
 
     /*
      * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(int $id): JsonResponse
     {
         $activity = $this->activityRepository->findOrFail($id);
 
         try {
             Event::dispatch('activity.delete.before', $id);
 
-            $this->activityRepository->delete($id);
+            $activity?->delete($id);
 
             Event::dispatch('activity.delete.after', $id);
 
             return response()->json([
-                'message' => trans('admin::app.activities.destroy-success', ['type' => trans('admin::app.activities.' . $activity->type)]),
+                'message' => trans('admin::app.activities.destroy-success'),
             ], 200);
         } catch (\Exception $exception) {
             return response()->json([
-                'message' => trans('admin::app.activities.destroy-failed', ['type' => trans('admin::app.activities.' . $activity->type)]),
+                'message' => trans('admin::app.activities.destroy-failed'),
             ], 400);
         }
     }
 
     /**
      * Mass Delete the specified resources.
-     *
-     * @return \Illuminate\Http\Response
      */
-    public function massDestroy()
+    public function massDestroy(MassDestroyRequest $massDestroyRequest): JsonResponse
     {
-        foreach (request('rows') as $activityId) {
-            Event::dispatch('activity.delete.before', $activityId);
+        $activities = $this->activityRepository->findWhereIn('id', $massDestroyRequest->input('indices'));
 
-            $this->activityRepository->delete($activityId);
+        try {
+            foreach ($activities as $activity) {
+                Event::dispatch('activity.delete.before', $activity->id);
 
-            Event::dispatch('activity.delete.after', $activityId);
+                $this->activityRepository->delete($activity->id);
+
+                Event::dispatch('activity.delete.after', $activity->id);
+            }
+
+            return response()->json([
+                'message' => trans('admin::app.activities.mass-destroy-success'),
+            ]);
+        } catch (\Exception $exception) {
+            return response()->json([
+                'message' => trans('admin::app.activities.mass-delete-failed'),
+            ], 400);
         }
-
-        return response()->json([
-            'message' => trans('admin::app.response.destroy-success', ['name' => trans('admin::app.activities.title')])
-        ]);
     }
 }

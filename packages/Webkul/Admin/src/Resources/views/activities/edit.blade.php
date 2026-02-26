@@ -1,340 +1,512 @@
-@extends('admin::layouts.master')
+<x-admin::layouts>
+    <!-- Page Title -->
+    <x-slot:title>
+        @lang('admin::app.activities.edit.title')
+    </x-slot>
 
-@section('page_title')
-    {{ __('admin::app.activities.edit-title') }}
-@stop
+    {!! view_render_event('admin.activities.edit.form.before') !!}
 
-@section('content-wrapper')
-    <div class="content full-page adjacent-center">
-        {!! view_render_event('admin.activities.edit.header.before', ['activity' => $activity]) !!}
+    <x-admin::form
+        :action="route('admin.activities.update', $activity->id)"
+        method="PUT"
+    >
+        <div class="flex flex-col gap-4">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                <div class="flex flex-col gap-2">
+                    <!-- Breadcrumbs -->
+                    <x-admin::breadcrumbs
+                        name="activities.edit"
+                        :entity="$activity"
+                    />
 
-        <div class="page-header">
-
-            {{ Breadcrumbs::render('activities.edit', $activity) }}
-
-            <div class="page-title">
-                <h1>{{ __('admin::app.activities.edit-title') }}</h1>
-            </div>
-        </div>
-
-        {!! view_render_event('admin.activities.edit.header.after', ['activity' => $activity]) !!}
-
-        <form method="POST" action="{{ route('admin.activities.update', $activity->id) }}" @submit.prevent="onSubmit">
-
-            <div class="page-content">
-                <div class="form-container">
-
-                    <div class="panel">
-                        <div class="panel-header">
-                            {!! view_render_event('admin.activities.edit.form_buttons.before', ['activity' => $activity]) !!}
-
-                            <button type="submit" class="btn btn-md btn-primary">
-                                {{ __('admin::app.activities.save-btn-title') }}
-                            </button>
-
-                            <a href="{{ route('admin.activities.index') }}">{{ __('admin::app.activities.back') }}</a>
-
-                            {!! view_render_event('admin.activities.edit.form_buttons.after', ['activity' => $activity]) !!}
-                        </div>
-        
-                        <div class="panel-body">
-                            {!! view_render_event('admin.activities.edit.form_controls.before', ['activity' => $activity]) !!}
-
-                            @csrf()
-
-                            <input name="_method" type="hidden" value="PUT">
-        
-                            <div class="form-group" :class="[errors.has('title') ? 'has-error' : '']">
-                                <label for="comment" class="required">{{ __('admin::app.activities.title-control') }}</label>
-
-                                <input
-                                    name="title"
-                                    class="control"
-                                    value="{{ old('title') ?: $activity->title }}"
-                                    v-validate="'required'"
-                                    data-vv-as="&quot;{{ __('admin::app.activities.title-control') }}&quot;"
-                                    v-pre
-                                />
-        
-                                <span class="control-error" v-if="errors.has('title')">@{{ errors.first('title') }}</span>
-                            </div>
-                
-                            <div class="form-group" :class="[errors.has('type') ? 'has-error' : '']">
-                                <label for="type" class="required">{{ __('admin::app.activities.type') }}</label>
-        
-                                <?php $selectedOption = old('type') ?: $activity->type ?>
-
-                                <select
-                                    name="type"
-                                    class="control"
-                                    v-validate="'required'"
-                                    data-vv-as="&quot;{{ __('admin::app.activities.type') }}&quot;"
-                                >
-                                    <option value=""></option>
-
-                                    <option value="call" {{ $selectedOption == 'call' ? 'selected' : '' }}>
-                                        {{ __('admin::app.activities.call') }}
-                                    </option>
-
-                                    <option value="meeting" {{ $selectedOption == 'meeting' ? 'selected' : '' }}>
-                                        {{ __('admin::app.activities.meeting') }}
-                                    </option>
-
-                                    <option value="lunch" {{ $selectedOption == 'lunch' ? 'selected' : '' }}>
-                                        {{ __('admin::app.activities.lunch') }}
-                                    </option>
-                                </select>
-        
-                                <span class="control-error" v-if="errors.has('type')">@{{ errors.first('type') }}</span>
-                            </div>
-        
-                            <div class="form-group date" :class="[errors.has('schedule_from') || errors.has('schedule_to') ? 'has-error' : '']">
-                                <label for="schedule_from" class="required">{{ __('admin::app.activities.schedule') }}</label>
-        
-                                <div class="input-group">
-                                    <datetime>
-                                        <input
-                                            type="text"
-                                            name="schedule_from"
-                                            class="control"
-                                            value="{{ old('schedule_from') ?: $activity->schedule_from }}"
-                                            placeholder="{{ __('admin::app.activities.from') }}" ref="schedule_from"
-                                            v-validate="'required|date_format:yyyy-MM-dd HH:mm:ss|after:{{\Carbon\Carbon::now()->format('Y-m-d H:i:s')}}'"
-                                            data-vv-as="&quot;{{ __('admin::app.activities.from') }}&quot;"
-                                        >
-        
-                                        <span class="control-error" v-if="errors.has('schedule_from')">@{{ errors.first('schedule_from') }}</span>
-                                    </datetime>
-        
-                                    <datetime>
-                                        <input
-                                            type="text"
-                                            name="schedule_to"
-                                            class="control"
-                                            value="{{ old('schedule_to') ?: $activity->schedule_to }}"
-                                            placeholder="{{ __('admin::app.activities.to') }}" ref="schedule_to"
-                                            v-validate="'required|date_format:yyyy-MM-dd HH:mm:ss|after:schedule_from'"
-                                            data-vv-as="&quot;{{ __('admin::app.activities.to') }}&quot;"
-                                        >
-        
-                                        <span class="control-error" v-if="errors.has('schedule_to')">@{{ errors.first('schedule_to') }}</span>
-                                    </datetime>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="location">{{ __('admin::app.activities.location') }}</label>
-
-                                <input name="location" class="control" value="{{ old('location') ?: $activity->location }}"/>
-                            </div>
-
-                            <div class="form-group video-conference">
-                            </div>
-        
-                            <div class="form-group">
-                                <label for="comment">{{ __('admin::app.activities.description') }}</label>
-                                <textarea class="control" id="activity-comment" name="comment" v-pre>{{ old('comment') ?: $activity->comment }}</textarea>
-                            </div>
-        
-                            <div class="form-group">
-                                <label for="participants">{{ __('admin::app.activities.participants') }}</label>
-        
-                                <multi-lookup-component :data='@json($activity->participants)'></multi-lookup-component>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="validation">{{ __('admin::app.activities.lead') }}</label>
-
-                                @include('admin::common.custom-attributes.edit.lookup')
-
-                                @php
-                                    $lookUpEntityData = app('Webkul\Attribute\Repositories\AttributeRepository')
-                                        ->getLookUpEntity(
-                                            'leads',
-                                            old('lead_id')
-                                                ?: (
-                                                    ($lead = $activity->leads()->first())
-                                                    ? $lead->id
-                                                    : null
-                                                )
-                                            );
-                                @endphp
-
-                                <lookup-component
-                                    :attribute="{'code': 'lead_id', 'name': 'Lead', 'lookup_type': 'leads'}"
-                                    :data='@json($lookUpEntityData)'
-                                ></lookup-component>
-                            </div>
-
-                            {!! view_render_event('admin.activities.edit.form_controls.after', ['activity' => $activity]) !!}
-
-                        </div>
+                    <!-- Page Title -->
+                    <div class="text-xl font-bold dark:text-gray-300">
+                        @lang('admin::app.activities.edit.title')
                     </div>
-
                 </div>
 
+                <div class="flex items-center gap-x-2.5">
+                    <!-- Create button for person -->
+                    <div class="flex items-center gap-x-2.5">
+                        {!! view_render_event('admin.activities.edit.save_button.before') !!}
+
+                        <!-- Save Button -->
+                        <button
+                            type="submit"
+                            class="primary-button"
+                        >
+                            @lang('admin::app.activities.edit.save-btn')
+                        </button>
+
+                        {!! view_render_event('admin.activities.edit.save_button.after') !!}
+                    </div>
+                </div>
             </div>
 
-        </form>
+            <!-- Form Content -->
+            <div class="flex gap-2.5 max-xl:flex-wrap-reverse">
+                <!-- Left sub-component -->
+                <div class="box-shadow flex-1 gap-2 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 max-xl:flex-auto">
+                    {!! view_render_event('admin.activities.edit.form_controls.before') !!}
 
-    </div>
-@stop
+                    <!-- Schedule Date -->
+                    <x-admin::form.control-group>
+                        <div class="flex gap-2 max-sm:flex-wrap">
+                            <div class="w-full">
+                                <x-admin::form.control-group.label class="required">
+                                    @lang('admin::app.activities.edit.schedule_from')
+                                </x-admin::form.control-group.label>
 
-@push('scripts')
+                                <x-admin::flat-picker.datetime class="!w-full" ::allow-input="true">
+                                    <input
+                                        name="schedule_from"
+                                        value="{{ old('schedule_from') ?? $activity->schedule_from }}"
+                                        class="flex w-full rounded-md border px-3 py-2 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                                        placeholder="@lang('admin::app.activities.edit.schedule_from')"
+                                    />
+                                </x-admin::flat-picker.datetime>
+                            </div>
 
-    <script type="text/x-template" id="multi-lookup-component-template">
-        <div class="lookup-control">
-            <div class="form-group" style="margin-bottom: 0">
-                <input type="text" class="control" v-model="search_term" v-on:keyup="search" autocomplete="off" placeholder="{{ __('admin::app.activities.typing-placeholder') }}">
+                            <div class="w-full">
+                                <x-admin::form.control-group.label class="required">
+                                    @lang('admin::app.activities.edit.schedule_to')
+                                </x-admin::form.control-group.label>
 
-                <div class="lookup-results grouped" v-if="search_term.length">
-                    <label>{{ __('admin::app.leads.users') }}</label>
+                                <x-admin::flat-picker.datetime class="!w-full" ::allow-input="true">
+                                    <input
+                                        name="schedule_to"
+                                        value="{{ old('schedule_to') ?? $activity->schedule_to }}"
+                                        class="flex w-full rounded-md border px-3 py-2 text-sm text-gray-600 transition-all hover:border-gray-400 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-400"
+                                        placeholder="@lang('admin::app.activities.edit.schedule_to')"
+                                    />
+                                </x-admin::flat-picker.datetime>
+                            </div>
+                        </div>
+                    </x-admin::form.control-group>
 
-                    <ul>
-                        <li v-for='(participant, index) in searched_participants.users' @click="addParticipant('users', participant)">
-                            <span>@{{ participant.name }}</span>
-                        </li>
+                    <!-- Comment -->
+                    <x-admin::form.control-group>
+                        <x-admin::form.control-group.label>
+                            @lang('admin::app.activities.edit.comment')
+                        </x-admin::form.control-group.label>
 
-                        <li v-if='! searched_participants.users.length && search_term.length && ! is_searching'>
-                            <span>{{ __('admin::app.common.no-result-found') }}</span>
-                        </li>
-                    </ul>
+                        <x-admin::form.control-group.control
+                            type="textarea"
+                            name="comment"
+                            id="comment"
+                            :value="old('comment') ?? $activity->comment"
+                            :label="trans('admin::app.activities.edit.comment')"
+                            :placeholder="trans('admin::app.activities.edit.comment')"
+                        />
 
-                    <label>{{ __('admin::app.leads.persons') }}</label>
+                        <x-admin::form.control-group.error control-name="comment" />
+                    </x-admin::form.control-group>
 
-                    <ul>
-                        <li v-for='(participant, index) in searched_participants.persons' @click="addParticipant('persons', participant)">
-                            <span>@{{ participant.name }}</span>
-                        </li>
+                    <!-- Participants -->
+                    <x-admin::form.control-group>
+                        <x-admin::form.control-group.label>
+                            @lang('admin::app.activities.edit.participants')
+                        </x-admin::form.control-group.label>
 
-                        <li v-if='! searched_participants.persons.length && search_term.length && ! is_searching'>
-                            <span>{{ __('admin::app.common.no-result-found') }}</span>
-                        </li>
-                    </ul>
+                        <!-- Participants Multi lookup Vue Component -->
+                        <v-multi-lookup-component>
+                            <div
+                                class="relative rounded border border-gray-200 px-2 py-1 hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:hover:border-gray-400 dark:focus:border-gray-400"
+                                role="button"
+                            >
+                                <ul class="flex flex-wrap items-center gap-1">
+                                    <li>
+                                        <input
+                                            type="text"
+                                            class="w-full px-1 py-1 dark:bg-gray-900 dark:text-gray-300"
+                                            placeholder="@lang('admin::app.activities.edit.participants')"
+                                        />
+                                    </li>
+                                </ul>
+
+                                <span class="icon-down-arrow absolute top-1.5 text-2xl ltr:right-1.5 rtl:left-1.5"></span>
+                            </div>
+                        </v-multi-lookup-component>
+                    </x-admin::form.control-group>
+
+                    <!-- Lead -->
+                    <x-admin::form.control-group class="!mb-0">
+                        <x-admin::form.control-group.label>
+                            @lang('admin::app.activities.edit.lead')
+                        </x-admin::form.control-group.label>
+
+                        <x-admin::attributes.edit.lookup/>
+
+                        <!-- Lead Lookup Vue Component -->
+                        <v-lookup-component
+                            :attribute="{'code': 'lead_id', 'name': 'Lead', 'lookup_type': 'leads'}"
+                            :value='@json($lookUpEntityData)'
+                        >
+                            <x-admin::form.control-group.control
+                                type="text"
+                                placeholder="@lang('admin::app.common.start-typing')"
+                            />
+
+                            <x-admin::form.control-group.error control-name="comment" />
+                        </x-admin::form.control-group>
+
+                        <!-- Participants -->
+                        <x-admin::form.control-group>
+                            <x-admin::form.control-group.label>
+                                @lang('admin::app.activities.edit.participants')
+                            </x-admin::form.control-group.label>
+
+                            <!-- Participants Multi lookup Vue Component -->
+                            <v-multi-lookup-component>
+                                <div
+                                    class="relative rounded border border-gray-200 px-2 py-1 hover:border-gray-400 focus:border-gray-400 dark:border-gray-800 dark:hover:border-gray-400 dark:focus:border-gray-400"
+                                    role="button"
+                                >
+                                    <ul class="flex flex-wrap items-center gap-1">
+                                        <li>
+                                            <input
+                                                type="text"
+                                                class="w-full px-1 py-1 dark:bg-gray-900 dark:text-gray-300"
+                                                placeholder="@lang('admin::app.activities.edit.participants')"
+                                            />
+                                        </li>
+                                    </ul>
+
+                                    <span class="icon-down-arrow absolute top-1.5 text-2xl ltr:right-1.5 rtl:left-1.5"></span>
+                                </div>
+                            </v-multi-lookup-component>
+                        </x-admin::form.control-group>
+
+                        <!-- Lead -->
+                        <x-admin::form.control-group class="!mb-0">
+                            <x-admin::form.control-group.label>
+                                @lang('admin::app.activities.edit.lead')
+                            </x-admin::form.control-group.label>
+
+                            <x-admin::attributes.edit.lookup/>
+
+                            <!-- Lead Lookup Vue Component -->
+                            <v-lookup-component
+                                :attribute="{'code': 'lead_id', 'name': 'Lead', 'lookup_type': 'leads'}"
+                                :value='@json($lookUpEntityData)'
+                                can-add-new="true"
+                            >
+                                <x-admin::form.control-group.control
+                                    type="text"
+                                    placeholder="@lang('admin::app.common.start-typing')"
+                                />
+                            </v-lookup-component>
+                        </x-admin::form.control-group>
+
+                    {!! view_render_event('admin.activities.edit.form_controls.after') !!}
                 </div>
 
-                <i class="icon loader-active-icon" v-if="is_searching"></i>
-            </div>
+                <!-- Right sub-component -->
+                <div class="w-[360px] max-w-full gap-2 max-xl:w-full">
+                    {!! view_render_event('admin.activities.edit.accordion.general.before') !!}
 
-            <div class="lookup-selected-options">
-                <span class="badge badge-sm badge-pill badge-secondary-outline users" v-for='(participant, index) in participants.users'>
-                    <input type="hidden" name="participants[users][]" :value="participant.id"/>
-                    @{{ participant.name }}
-                    <i class="icon close-icon"  @click="removeParticipant('users', participant)"></i>
-                </span>
+                    <x-admin::accordion>
+                        <x-slot:header>
+                            <div class="flex items-center justify-between">
+                                <p class="p-2.5 text-base font-semibold text-gray-800 dark:text-white">
+                                    @lang('admin::app.activities.edit.general')
+                                </p>
+                            </div>
+                        </x-slot>
 
-                <span class="badge badge-sm badge-pill badge-warning-outline persons" v-for='(participant, index) in participants.persons'>
-                    <input type="hidden" name="participants[persons][]" :value="participant.id"/>
-                    @{{ participant.name }}
-                    <i class="icon close-icon"  @click="removeParticipant('persons', participant)"></i>
-                </span>
+                        <x-slot:content>
+                            <!-- Title -->
+                            <x-admin::form.control-group>
+                                <x-admin::form.control-group.label class="required">
+                                    @lang('admin::app.activities.edit.title')
+                                </x-admin::form.control-group.label>
+
+                                <x-admin::form.control-group.control
+                                    type="text"
+                                    name="title"
+                                    id="title"
+                                    rules="required"
+                                    :value="old('title') ?? $activity->title"
+                                    :label="trans('admin::app.activities.edit.title')"
+                                    :placeholder="trans('admin::app.activities.edit.title')"
+                                />
+
+                                <x-admin::form.control-group.error control-name="title" />
+                            </x-admin::form.control-group>
+
+                            <!-- Edit Type -->
+                            <x-admin::form.control-group>
+                                <x-admin::form.control-group.label class="required">
+                                    @lang('admin::app.activities.edit.type')
+                                </x-admin::form.control-group.label>
+
+                                <x-admin::form.control-group.control
+                                    type="select"
+                                    name="type"
+                                    id="type"
+                                    :value="old('type') ?? $activity->type"
+                                    rules="required"
+                                    :label="trans('admin::app.activities.edit.type')"
+                                    :placeholder="trans('admin::app.activities.edit.type')"
+                                >
+                                    <option value="call">
+                                        @lang('admin::app.activities.edit.call')
+                                    </option>
+
+                                    <option value="meeting">
+                                        @lang('admin::app.activities.edit.meeting')
+                                    </option>
+
+                                    <option value="lunch">
+                                        @lang('admin::app.activities.edit.lunch')
+                                    </option>
+                                </x-admin::form.control-group.control>
+
+                                <x-admin::form.control-group.error control-name="type" />
+                            </x-admin::form.control-group>
+
+                            <!-- Location -->
+                            <x-admin::form.control-group class="!mb-0">
+                                <x-admin::form.control-group.label>
+                                    @lang('admin::app.activities.edit.location')
+                                </x-admin::form.control-group.label>
+
+                                <x-admin::form.control-group.control
+                                    type="text"
+                                    name="location"
+                                    id="location"
+                                    :value="old('location') ?? $activity->location"
+                                    :label="trans('admin::app.activities.edit.location')"
+                                    :placeholder="trans('admin::app.activities.edit.location')"
+                                />
+
+                                <x-admin::form.control-group.error control-name="location" />
+                            </x-admin::form.control-group>
+                        </x-slot>
+                    </x-admin::accordion>
+
+                    {!! view_render_event('admin.activities.edit.accordion.general.after') !!}
+                </div>
             </div>
         </div>
-    </script>
+    </x-admin::form>
 
-    <script>
-        Vue.component('multi-lookup-component', {
+    {!! view_render_event('admin.activities.edit.form.after') !!}
 
-            template: '#multi-lookup-component-template',
-    
-            props: ['data'],
+    @pushOnce('scripts')
+        <script
+            type="text/x-template"
+            id="v-multi-lookup-component-template"
+        >
+            <!-- Search Button -->
+            <div class="relative">
+                <div class="relative rounded border border-gray-200 px-2 py-1 hover:border-gray-400 focus:border-gray-400 dark:border-gray-800" role="button">
+                    <ul class="flex flex-wrap items-center gap-1">
+                        <!-- Added Participants -->
+                        <template v-for="userType in ['users', 'persons']">
+                            <template v-if="! addedParticipants[userType].length">
+                                <input
+                                    type="hidden"
+                                    :name="`participants[${userType}][]`"
+                                    value=""
+                                />
+                            </template>
 
-            inject: ['$validator'],
+                            <li
+                                class="flex items-center gap-1 rounded-md bg-slate-100 pl-2 dark:bg-slate-950 dark:text-gray-300"
+                                v-for="(user, index) in addedParticipants[userType]"
+                            >
+                                <!-- Person and User Hidden Input Field -->
+                                <input
+                                    type="hidden"
+                                    :name="`participants[${userType}][]`"
+                                    :value="user.id"
+                                />
 
-            data: function () {
-                return {
-                    search_term: '',
+                                @{{ user.name }}
 
-                    is_searching: false,
+                                <span
+                                    class="icon-cross-large cursor-pointer p-0.5 text-xl"
+                                    @click="remove(userType, user)"
+                                ></span>
+                            </li>
+                        </template>
 
-                    searched_participants: {
-                        'users': [],
+                        <!-- Search Input Box -->
+                        <li>
+                            <input
+                                type="text"
+                                class="w-full px-1 py-1 dark:bg-gray-900 dark:text-gray-300"
+                                placeholder="@lang('admin::app.activities.edit.participants')"
+                                v-model.lazy="searchTerm"
+                                v-debounce="500"
+                            />
+                        </li>
+                    </ul>
 
-                        'persons': []
-                    },
+                    <!-- Search and Spinner Icon -->
+                    <div>
+                        <template v-if="! isSearching.users && ! isSearching.persons">
+                            <span
+                                class="absolute top-1.5 text-2xl ltr:right-1.5 rtl:left-1.5"
+                                :class="[searchTerm.length >= 2 ? 'icon-up-arrow' : 'icon-down-arrow']"
+                            ></span>
+                        </template>
 
-                    participants: {
-                        'users': [],
+                        <template v-else>
+                            <x-admin::spinner class="absolute top-2 ltr:right-2 rtl:left-2" />
+                        </template>
+                    </div>
+                </div>
 
-                        'persons': []
-                    },
-                }
-            },
+                <!-- Search Dropdown -->
+                <div
+                    class="absolute z-10 w-full rounded bg-white shadow-[0px_10px_20px_0px_#0000001F] dark:bg-gray-900"
+                    v-if="searchTerm.length >= 2"
+                >
+                    <ul class="flex flex-col gap-1 p-2">
+                        <!-- Users and Person Searched Participants -->
+                        <li
+                            class="flex flex-col gap-2"
+                            v-for="userType in ['users', 'persons']"
+                        >
+                            <h3 class="text-sm font-bold text-gray-600 dark:text-gray-400">
+                                <template v-if="userType === 'users'">
+                                    @lang('admin::app.activities.edit.users')
+                                </template>
 
-            mounted: function() {
-                var self = this;
+                                <template v-else>
+                                    @lang('admin::app.activities.edit.persons')
+                                </template>
+                            </h3>
 
-                this.data.forEach(function(participant) {
-                    if (participant.user) {
-                        self.participants.users.push({'id': participant.user.id, 'name': participant.user.name});
-                    } else {
-                        self.participants.persons.push({'id': participant.person.id, 'name': participant.person.name});
-                    }
-                });
-            },
+                            <ul>
+                                <li
+                                    class="rounded-sm px-5 py-2 text-sm text-gray-800 dark:text-gray-300"
+                                    v-if="! searchedParticipants[userType].length && ! isSearching[userType]"
+                                >
+                                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                                        @lang('admin::app.activities.edit.no-result-found')
+                                    </p>
+                                </li>
 
-            methods: {
-                search: debounce(function () {
-                    this.is_searching = true;
+                                <li
+                                    class="cursor-pointer rounded-sm px-3 py-2 text-sm text-gray-800 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-950"
+                                    v-for="user in searchedParticipants[userType]"
+                                    @click="add(userType, user)"
+                                >
+                                    @{{ user.name }}
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </script>
 
-                    if (this.search_term.length < 2) {
-                        this.searched_participants = {
-                            'users': [],
+        <script type="module">
+            app.component('v-multi-lookup-component', {
+                template: '#v-multi-lookup-component-template',
 
-                            'persons': []
-                        };
+                data() {
+                    return {
+                        isSearching: {
+                            users: false,
 
-                        this.is_searching = false;
+                            persons: false,
+                        },
 
-                        return;
-                    }
+                        searchTerm: '',
 
-                    this.$http.get("{{ route('admin.activities.search_participants') }}", {params: {query: this.search_term}})
-                        .then (response => {
-                            var self = this;
-                            
-                            ['users', 'persons'].forEach(function(userType) {
-                                if (self.participants[userType].length) {
-                                    self.participants[userType].forEach(function(addedUser) {
-                                        
-                                        response.data[userType].forEach(function(user, index) {
-                                            if (user.id == addedUser.id) {
-                                                response.data[userType].splice(index, 1);
-                                            }
-                                        });
+                        addedParticipants: {
+                            users: [],
 
-                                    })
-                                }
-                            })
+                            persons: [],
+                        },
 
-                            this.searched_participants = response.data;
+                        searchedParticipants: {
+                            users: [],
 
-                            this.is_searching = false;
-                        })
-                        .catch (error => {
-                            this.is_searching = false;
-                        })
-                }, 500),
+                            persons: [],
+                        },
 
-                addParticipant: function(type, participant) {
-                    this.search_term = '';
+                        searchEnpoints: {
+                            users: "{{ route('admin.settings.users.search') }}",
 
-                    this.searched_participants = {
-                        'users': [],
-
-                        'persons': []
+                            persons: "{{ route('admin.contacts.persons.search') }}",
+                        },
                     };
-
-                    this.participants[type].push(participant);
                 },
 
-                removeParticipant: function(type, participant) {
-                    const index = this.participants[type].indexOf(participant);
+                watch: {
+                    searchTerm(newVal, oldVal) {
+                        this.search('users');
 
-                    Vue.delete(this.participants[type], index);
-                }
-            }
-        });
-    </script>
+                        this.search('persons');
+                    },
+                },
 
-@endpush
+                created() {
+                    @json($activity->participants).forEach(participant => {
+                        if (participant.user) {
+                            this.addedParticipants.users.push(participant.user);
+                        } else if (participant.person) {
+                            this.addedParticipants.persons.push(participant.person);
+                        }
+                    });
+                },
+
+                methods: {
+                    search(userType) {
+                        if (this.searchTerm.length <= 1) {
+                            this.searchedParticipants[userType] = [];
+
+                            this.isSearching[userType] = false;
+
+                            return;
+                        }
+
+                        this.isSearching[userType] = true;
+
+                        this.$axios.get(this.searchEnpoints[userType], {
+                                params: {
+                                    search: 'name:' + this.searchTerm,
+                                    searchFields: 'name:like',
+                                }
+                            })
+                            .then ((response) => {
+                                this.addedParticipants[userType].forEach(addedParticipant =>
+                                    response.data.data = response.data.data.filter(participant => participant.id !== addedParticipant.id)
+                                );
+
+                                this.searchedParticipants[userType] = response.data.data;
+
+                                this.isSearching[userType] = false;
+                            })
+                            .catch (function (error) {
+                                this.isSearching[userType] = false;
+                            });
+                    },
+
+                    add(userType, participant) {
+                        this.addedParticipants[userType].push(participant);
+
+                        this.searchTerm = '';
+
+                        this.searchedParticipants = {
+                            users: [],
+
+                            persons: [],
+                        };
+                    },
+
+                    remove(userType, participant) {
+                        this.addedParticipants[userType] = this.addedParticipants[userType].filter(addedParticipant =>
+                            addedParticipant.id !== participant.id
+                        );
+                    },
+                },
+            });
+        </script>
+    @endPushOnce
+</x-admin::layouts>

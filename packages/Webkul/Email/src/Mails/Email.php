@@ -12,22 +12,11 @@ class Email extends Mailable
     use Queueable, SerializesModels;
 
     /**
-     * The email instance.
-     *
-     * @var  \Webkul\Email\Contracts\Email  $email
-     */
-    public $email;
-
-    /**
      * Create a new email instance.
      *
-     * @param  \Webkul\Email\Contracts\Email  $email
      * @return void
      */
-    public function __construct($email)
-    {
-        $this->email = $email;
-    }
+    public function __construct(public $email) {}
 
     /**
      * Build the message.

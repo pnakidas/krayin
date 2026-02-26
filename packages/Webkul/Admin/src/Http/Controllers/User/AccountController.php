@@ -2,8 +2,9 @@
 
 namespace Webkul\Admin\Http\Controllers\User;
 
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Webkul\Admin\Http\Controllers\Controller;
 
 class AccountController extends Controller
@@ -27,31 +28,38 @@ class AccountController extends Controller
      */
     public function update()
     {
-        $isPasswordChanged = false;
-
         $user = auth()->guard('user')->user();
 
         $this->validate(request(), [
             'name'             => 'required',
-            'email'            => 'email|unique:users,email,' . $user->id,
+            'email'            => 'email|unique:users,email,'.$user->id,
             'password'         => 'nullable|min:6|confirmed',
-            'current_password' => 'nullable|required|min:6',
-            'image'            => 'mimes:jpeg,jpg,png,gif'
+            'current_password' => 'required|min:6',
+            'image.*'          => 'nullable|mimes:bmp,jpeg,jpg,png,webp',
         ]);
 
-        $data = request()->input();
+        $data = request()->only([
+            'name',
+            'email',
+            'password',
+            'password_confirmation',
+            'current_password',
+            'image',
+        ]);
 
-        if (! Hash::check($data['current_password'], auth()->guard('user')->user()->password)) {
-            session()->flash('warning', trans('admin::app.user.account.password-match'));
+        if (! Hash::check($data['current_password'], $user->password)) {
+            session()->flash('warning', trans('admin::app.account.edit.invalid-password'));
 
             return redirect()->back();
         }
 
-        if( isset($data['role_id']) || isset($data['view_permission']) ) {
+        if (isset($data['role_id']) || isset($data['view_permission'])) {
             session()->flash('warning', trans('admin::app.user.account.permission-denied'));
 
             return redirect()->back();
         }
+
+        $isPasswordChanged = false;
 
         if (! $data['password']) {
             unset($data['password']);
@@ -62,11 +70,17 @@ class AccountController extends Controller
         }
 
         if (request()->hasFile('image')) {
-            $data['image'] = request()->file('image')->store('users/' . $user->id);
-        }
+            $data['image'] = current(request()->file('image'))->store('admins/'.$user->id);
+        } else {
+            if (! isset($data['image'])) {
+                if (! empty($data['image'])) {
+                    Storage::delete($user->image);
+                }
 
-        if (isset($data['remove_image']) && $data['remove_image'] !== '') {
-            $data['image'] = null;
+                $data['image'] = null;
+            } else {
+                $data['image'] = $user->image;
+            }
         }
 
         $user->update($data);
@@ -75,8 +89,8 @@ class AccountController extends Controller
             Event::dispatch('user.account.update-password', $user);
         }
 
-        session()->flash('success', trans('admin::app.user.account.account-save'));
+        session()->flash('success', trans('admin::app.account.edit.update-success'));
 
-        return redirect()->route('admin.dashboard.index');
+        return back();
     }
 }

@@ -4,13 +4,24 @@ namespace Webkul\Email\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Webkul\Contact\Models\PersonProxy;
-use Webkul\Lead\Models\LeadProxy;
 use Webkul\Email\Contracts\Email as EmailContract;
+use Webkul\Lead\Models\LeadProxy;
+use Webkul\Tag\Models\TagProxy;
 
 class Email extends Model implements EmailContract
 {
+    /**
+     * The table associated with the model.
+     *
+     * @var string
+     */
     protected $table = 'emails';
 
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array
+     */
     protected $casts = [
         'folders'       => 'array',
         'sender'        => 'array',
@@ -19,6 +30,15 @@ class Email extends Model implements EmailContract
         'cc'            => 'array',
         'bcc'           => 'array',
         'reference_ids' => 'array',
+    ];
+
+    /**
+     * The attributes that are appended.
+     *
+     * @var array
+     */
+    protected $appends = [
+        'time_ago',
     ];
 
     /**
@@ -45,6 +65,8 @@ class Email extends Model implements EmailContract
         'person_id',
         'parent_id',
         'lead_id',
+        'created_at',
+        'updated_at',
     ];
 
     /**
@@ -80,10 +102,26 @@ class Email extends Model implements EmailContract
     }
 
     /**
+     * The tags that belong to the lead.
+     */
+    public function tags()
+    {
+        return $this->belongsToMany(TagProxy::modelClass(), 'email_tags');
+    }
+
+    /**
      * Get the attachments.
      */
     public function attachments()
     {
         return $this->hasMany(AttachmentProxy::modelClass(), 'email_id');
+    }
+
+    /**
+     * Get the time ago.
+     */
+    public function getTimeAgoAttribute(): string
+    {
+        return $this->created_at->diffForHumans();
     }
 }

@@ -4,40 +4,24 @@ namespace Webkul\Email\Repositories;
 
 use Illuminate\Support\Facades\Storage;
 use Webkul\Core\Eloquent\Repository;
+use Webkul\Email\Contracts\Attachment;
 
 class AttachmentRepository extends Repository
 {
     /**
-     * Parser object
-     *
-     * @var \Webkul\Email\Helpers\Parser
-     */
-    protected $emailParser;
-
-    /**
-     * Specify Model class name
+     * Specify model class name.
      *
      * @return mixed
      */
-    function model()
+    public function model()
     {
-        return 'Webkul\Email\Contracts\Attachment';
+        return Attachment::class;
     }
 
     /**
-     * @param  \Webkul\Email\Helpers\Parser  $emailParser
-     * @return self
-     */
-    public function setEmailParser($emailParser)
-    {
-        $this->emailParser = $emailParser;
-
-        return $this;
-    }
-
-    /**
+     * Upload attachments.
+     *
      * @param  \Webkul\Email\Contracts\Email  $email
-     * @param  array $data
      * @return void
      */
     public function uploadAttachments($email, array $data)
@@ -45,10 +29,10 @@ class AttachmentRepository extends Repository
         if (! isset($data['source'])) {
             return;
         }
-        
+
         if ($data['source'] == 'email') {
-            foreach ($this->emailParser->getAttachments() as $attachment) {
-                Storage::put($path = 'emails/' . $email->id . '/' . $attachment->getFilename(), $attachment->getContent());
+            foreach ($data['attachments'] as $attachment) {
+                Storage::put($path = 'emails/'.$email->id.'/'.$attachment->getFilename(), $attachment->getContent());
 
                 $this->create([
                     'path'         => $path,
@@ -63,10 +47,10 @@ class AttachmentRepository extends Repository
             if (! isset($data['attachments'])) {
                 return;
             }
-            
+
             foreach ($data['attachments'] as $index => $attachment) {
                 $this->create([
-                    'path'         => $path = request()->file('attachments.' . $index)->store('emails/' . $email->id),
+                    'path'         => $path = request()->file('attachments.'.$index)->store('emails/'.$email->id),
                     'name'         => $attachment->getClientOriginalName(),
                     'content_type' => $attachment->getClientMimeType(),
                     'size'         => Storage::size($path),

@@ -2,43 +2,35 @@
 
 namespace Webkul\Admin\Http\Controllers\Contact;
 
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Event;
+use Illuminate\View\View;
+use Webkul\Admin\DataGrids\Contact\OrganizationDataGrid;
 use Webkul\Admin\Http\Controllers\Controller;
-use Webkul\Attribute\Http\Requests\AttributeForm;
+use Webkul\Admin\Http\Requests\AttributeForm;
+use Webkul\Admin\Http\Requests\MassDestroyRequest;
 use Webkul\Contact\Repositories\OrganizationRepository;
 
 class OrganizationController extends Controller
 {
     /**
-     * OrganizationRepository object
-     *
-     * @var \Webkul\Product\Repositories\OrganizationRepository
-     */
-    protected $organizationRepository;
-
-    /**
      * Create a new controller instance.
-     *
-     * @param \Webkul\Product\Repositories\OrganizationRepository  $organizationRepository
      *
      * @return void
      */
-    public function __construct(OrganizationRepository $organizationRepository)
+    public function __construct(protected OrganizationRepository $organizationRepository)
     {
-        $this->organizationRepository = $organizationRepository;
-
         request()->request->add(['entity_type' => 'organizations']);
     }
 
     /**
      * Display a listing of the resource.
-     *
-     * @return \Illuminate\View\View
      */
-    public function index()
+    public function index(): View|JsonResponse
     {
         if (request()->ajax()) {
-            return app(\Webkul\Admin\DataGrids\Contact\OrganizationDataGrid::class)->toJson();
+            return datagrid(OrganizationDataGrid::class)->process();
         }
 
         return view('admin::contacts.organizations.index');
@@ -46,22 +38,16 @@ class OrganizationController extends Controller
 
     /**
      * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\View\View
      */
-    public function create()
+    public function create(): View
     {
         return view('admin::contacts.organizations.create');
     }
 
-
     /**
      * Store a newly created resource in storage.
-     *
-     * @param \Webkul\Attribute\Http\Requests\AttributeForm $request
-     * @return \Illuminate\Http\Response
      */
-    public function store(AttributeForm $request)
+    public function store(AttributeForm $request): RedirectResponse
     {
         Event::dispatch('contacts.organization.create.before');
 
@@ -69,18 +55,15 @@ class OrganizationController extends Controller
 
         Event::dispatch('contacts.organization.create.after', $organization);
 
-        session()->flash('success', trans('admin::app.contacts.organizations.create-success'));
+        session()->flash('success', trans('admin::app.contacts.organizations.index.create-success'));
 
         return redirect()->route('admin.contacts.organizations.index');
     }
 
     /**
      * Show the form for editing the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\View\View
      */
-    public function edit($id)
+    public function edit(int $id): View
     {
         $organization = $this->organizationRepository->findOrFail($id);
 
@@ -89,12 +72,8 @@ class OrganizationController extends Controller
 
     /**
      * Update the specified resource in storage.
-     *
-     * @param \Webkul\Attribute\Http\Requests\AttributeForm $request
-     * @param int  $id
-     * @return \Illuminate\Http\Response
      */
-    public function update(AttributeForm $request, $id)
+    public function update(AttributeForm $request, int $id): RedirectResponse
     {
         Event::dispatch('contacts.organization.update.before', $id);
 
@@ -102,21 +81,16 @@ class OrganizationController extends Controller
 
         Event::dispatch('contacts.organization.update.after', $organization);
 
-        session()->flash('success', trans('admin::app.contacts.organizations.update-success'));
+        session()->flash('success', trans('admin::app.contacts.organizations.index.update-success'));
 
         return redirect()->route('admin.contacts.organizations.index');
     }
 
     /**
      * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(int $id): JsonResponse
     {
-        $this->organizationRepository->findOrFail($id);
-
         try {
             Event::dispatch('contact.organization.delete.before', $id);
 
@@ -125,32 +99,32 @@ class OrganizationController extends Controller
             Event::dispatch('contact.organization.delete.after', $id);
 
             return response()->json([
-                'message' => trans('admin::app.response.destroy-success', ['name' => trans('admin::app.contacts.organizations.organization')]),
+                'message' => trans('admin::app.contacts.organizations.index.delete-success'),
             ], 200);
-        } catch(\Exception $exception) {
+        } catch (\Exception $exception) {
             return response()->json([
-                'message' => trans('admin::app.response.destroy-failed', ['name' => trans('admin::app.contacts.organizations.organization')]),
+                'message' => trans('admin::app.contacts.organizations.index.delete-failed'),
             ], 400);
         }
     }
 
     /**
      * Mass Delete the specified resources.
-     *
-     * @return \Illuminate\Http\Response
      */
-    public function massDestroy()
+    public function massDestroy(MassDestroyRequest $massDestroyRequest): JsonResponse
     {
-        foreach (request('rows') as $organizationId) {
-            Event::dispatch('contact.organization.delete.before', $organizationId);
+        $organizations = $this->organizationRepository->findWhereIn('id', $massDestroyRequest->input('indices'));
 
-            $this->organizationRepository->delete($organizationId);
+        foreach ($organizations as $organization) {
+            Event::dispatch('contact.organization.delete.before', $organization);
 
-            Event::dispatch('contact.organization.delete.after', $organizationId);
+            $this->organizationRepository->delete($organization->id);
+
+            Event::dispatch('contact.organization.delete.after', $organization);
         }
 
         return response()->json([
-            'message' => trans('admin::app.response.destroy-success', ['name' => trans('admin::app.contacts.organizations.title')])
+            'message' => trans('admin::app.contacts.organizations.index.delete-success'),
         ]);
     }
 }

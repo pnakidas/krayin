@@ -1,60 +1,73 @@
-@extends('admin::layouts.master')
 
-@section('page_title')
-    {{ __('admin::app.contacts.organizations.create-title') }}
-@stop
+<x-admin::layouts>
+    <!-- Page Title -->
+    <x-slot:title>
+        @lang('admin::app.contacts.organizations.create.title')
+    </x-slot>
 
-@section('content-wrapper')
-    <div class="content full-page adjacent-center">
+    {!! view_render_event('admin.organizations.create.form.before') !!}
 
-        {!! view_render_event('admin.contacts.organizations.create.header.before') !!}
+    <x-admin::form
+        :action="route('admin.contacts.organizations.store')"
+        method="POST"
+    >
+    
+        <div class="flex flex-col gap-4">
+            <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                <div class="flex flex-col gap-2">
+                    {!! view_render_event('admin.organizations.create.breadcrumbs.before') !!}
 
-        <div class="page-header">
+                    <!-- Breadcrumbs -->
+                    <x-admin::breadcrumbs name="contacts.organizations.create" />
 
-            {{ Breadcrumbs::render('contacts.organizations.create') }}
-            
-            <div class="page-title">
-                <h1>{{ __('admin::app.contacts.organizations.create-title') }}</h1>
-            </div>
-        </div>
+                    {!! view_render_event('admin.organizations.create.breadcrumbs.before') !!}
 
-        {!! view_render_event('admin.contacts.organizations.create.header.after') !!}
+                    <div class="text-xl font-bold dark:text-gray-300">
+                        @lang('admin::app.contacts.organizations.create.title')
+                    </div>
+                </div>
 
-        <form method="POST" action="{{ route('admin.contacts.organizations.store') }}" @submit.prevent="onSubmit" enctype="multipart/form-data">
+                <div class="flex items-center gap-x-2.5">
+                    <div class="flex items-center gap-x-2.5">
+                        {!! view_render_event('admin.organizations.create.save_buttons.before') !!}
 
-            <div class="page-content">
-                <div class="form-container">
+                        <!-- Create button for person -->
+                        <button
+                            type="submit"
+                            class="primary-button"
+                        >
+                            @lang('admin::app.contacts.organizations.create.save-btn')
+                        </button>
 
-                    <div class="panel">
-                        <div class="panel-header">
-                            {!! view_render_event('admin.contacts.organizations.create.form_buttons.before') !!}
-
-                            <button type="submit" class="btn btn-md btn-primary">
-                                {{ __('admin::app.contacts.organizations.save-btn-title') }}
-                            </button>
-
-                            <a href="{{ route('admin.contacts.organizations.index') }}">{{ __('admin::app.contacts.organizations.back') }}</a>
-
-                            {!! view_render_event('admin.contacts.organizations.create.form_buttons.after') !!}
-                        </div>
-        
-                        <div class="panel-body">
-                            {!! view_render_event('admin.contacts.organizations.create.form_controls.before') !!}
-
-                            @csrf()
-                
-                            @include('admin::common.custom-attributes.edit', [
-                                'customAttributes' => app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
-                                    'entity_type' => 'organizations',
-                                ]),
-                            ])
-
-                            {!! view_render_event('admin.contacts.organizations.edit.form_controls.after') !!}
-                        </div>
+                        {!! view_render_event('admin.organizations.create.save_buttons.before') !!}
                     </div>
                 </div>
             </div>
 
-        </form>
-    </div>
-@stop
+            <div class="box-shadow rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                {!! view_render_event('admin.contacts.organizations.create.form_controls.before') !!}
+
+                <x-admin::attributes
+                    :custom-attributes="app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
+                        'entity_type' => 'organizations',
+                    ])"
+                    :custom-validations="[
+                        'name' => [
+                            'max:100',
+                        ],
+                        'address' => [
+                            'max:100',
+                        ],
+                        'postcode' => [
+                            'postcode',
+                        ],
+                    ]"
+                />
+
+                {!! view_render_event('admin.contacts.organizations.edit.form_controls.after') !!}
+            </div>
+        </div>
+    </x-admin::form>
+
+    {!! view_render_event('admin.organizations.create.form.after') !!}
+</x-admin::layouts>

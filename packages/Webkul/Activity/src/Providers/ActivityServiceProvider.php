@@ -2,9 +2,8 @@
 
 namespace Webkul\Activity\Providers;
 
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Foundation\AliasLoader;
 use Illuminate\Routing\Router;
+use Illuminate\Support\ServiceProvider;
 
 class ActivityServiceProvider extends ServiceProvider
 {
@@ -15,15 +14,6 @@ class ActivityServiceProvider extends ServiceProvider
      */
     public function boot(Router $router)
     {
-        $this->loadMigrationsFrom(__DIR__ . '/../Database/Migrations');
-    }
-
-    /**
-     * Register services.
-     *
-     * @return void
-     */
-    public function register()
-    {
+        $this->loadMigrationsFrom(__DIR__.'/../Database/Migrations');
     }
 }

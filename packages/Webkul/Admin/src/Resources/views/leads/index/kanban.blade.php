@@ -1,310 +1,581 @@
-@push('css')
-    <style>
-        .content-container {
-            overflow: hidden;
-        }
+{!! view_render_event('admin.leads.index.kanban.before') !!}
 
-        .drag-container {
-            overflow: inherit;
-        }
-
-        .table {
-            height: 100%;
-            width: 100%;
-        }
-
-        .viewport-height {
-            height: calc(100vh - 240px);
-        }
-    </style>
-@endpush
-
-<div class="content full-page">
-    <div class="table">
-        <div class="table-header">
-            <h1>
-                {!! view_render_event('admin.leads.index.header.before') !!}
-
-                {{ Breadcrumbs::render('leads') }}
-
-                {{ __('admin::app.leads.title') }}
-
-                {!! view_render_event('admin.leads.index.header.after') !!}
-            </h1>
-
-            @if (bouncer()->hasPermission('leads.create'))
-                <div class="table-action">
-                    <a href="{{ route('admin.leads.create') }}" class="btn btn-md btn-primary">{{ __('admin::app.leads.create-title') }}</a>
-                </div>
-            @endif
-        </div>
-
-        <div class="table-body viewport-height">
-            <kanban-filters></kanban-filters>
-
-            <kanban-component></kanban-component>
-        </div>
+<!-- Kanban Vue Component -->
+<v-leads-kanban ref="leadsKanban">
+    <div class="flex flex-col gap-4">
+        <!-- Shimmer -->
+        <x-admin::shimmer.leads.index.kanban />
     </div>
-</div>
+</v-leads-kanban>
 
-@push('scripts')
-    <script type="text/x-template" id="kanban-filters-tempalte">
-        <div class="form-group datagrid-filters">
-            <div class="search-filter">
-                <i class="icon search-icon input-search-icon"></i>
+{!! view_render_event('admin.leads.index.kanban.after') !!}
 
-                <input
-                    type="search"
-                    class="control"
-                    id="search-field"
-                    :placeholder="__('ui.datagrid.search')"
-                />
+@pushOnce('scripts')
+    <script
+        type="text/x-template"
+        id="v-leads-kanban-template"
+    >
+        <template v-if="isLoading">
+            <div class="flex flex-col gap-4">
+                <x-admin::shimmer.leads.index.kanban />
             </div>
+        </template>
 
-            <sidebar-filter :columns="columns"></sidebar-filter>
+        <template v-else>
+            <div class="flex flex-col gap-4">
+                @include('admin::leads.index.kanban.toolbar')
 
-            <div class="filter-right">
+                {!! view_render_event('admin.leads.index.kanban.content.before') !!}
 
-                @include('admin::leads.index.view-swither')
+                <div class="flex gap-2.5 overflow-x-auto">
+                    <!-- Stage Cards -->
+                    <div
+                        class="flex min-w-[275px] max-w-[275px] flex-col gap-1 rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+                        v-for="(stage, index) in stageLeads"
+                    >
+                        {!! view_render_event('admin.leads.index.kanban.content.stage.header.before') !!}
 
-                <div class="filter-btn">
-                    <div class="grid-dropdown-header" @click="toggleSidebarFilter">
-                        <span class="name">{{ __('ui::app.datagrid.filter.title') }}</span>
+                        <!-- Stage Header -->
+                        <div class="flex flex-col px-2 py-3">
+                            <!-- Stage Title and Action -->
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-medium dark:text-white">
+                                    @{{ stage.name }} (@{{ stage.leads.meta.total }})
+                                </span>
 
-                        <i class="icon add-icon"></i>
+                                @if (bouncer()->hasPermission('leads.create'))
+                                    <a
+                                        :href="'{{ route('admin.leads.create') }}' + '?stage_id=' + stage.id"
+                                        class="icon-add cursor-pointer rounded p-1 text-lg text-gray-600 transition-all hover:bg-gray-200 hover:text-gray-800 dark:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-white"
+                                        target="_blank"
+                                    >
+                                    </a>
+                                @endif
+                            </div>
+
+                            <!-- Stage Total Leads and Amount -->
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-xs font-medium dark:text-white">
+                                    @{{ $admin.formatPrice(stage.lead_value) }}
+                                </span>
+
+                                <!-- Progress Bar -->
+                                <div class="h-1 w-36 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+                                    <div
+                                        class="h-1 bg-green-500"
+                                        :style="{ width: (stage.lead_value / totalStagesAmount) * 100 + '%' }"
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {!! view_render_event('admin.leads.index.kanban.content.stage.header.after') !!}
+                       
+                        {!! view_render_event('admin.leads.index.kanban.content.stage.body.before') !!}
+
+                        <!-- Draggable Stage Lead Cards -->
+                        <draggable
+                            class="flex h-[calc(100vh-317px)] flex-col gap-2 overflow-y-auto p-2"
+                            :class="{ 'justify-center': stage.leads.data.length === 0 }"
+                            ghost-class="draggable-ghost"
+                            handle=".lead-item"
+                            v-bind="{animation: 200}"
+                            :list="stage.leads.data"
+                            item-key="id"
+                            group="leads"
+                            @scroll="handleScroll(stage, $event)"
+                            @change="updateStage(stage, $event)"
+                        >
+                            <template #header>
+                                <div 
+                                    class="flex flex-col items-center justify-center"
+                                    v-if="! stage.leads.data.length"
+                                >
+                                    <img
+                                        class="dark:mix-blend-exclusion dark:invert"
+                                        src="{{ vite()->asset('images/empty-placeholders/pipedrive.svg') }}"    
+                                    >
+
+                                    <div class="flex flex-col items-center gap-4">
+                                        <div class="flex flex-col items-center gap-2">
+                                            <p class="!text-base font-semibold dark:text-white">
+                                                @lang('admin::app.leads.index.kanban.empty-list')
+                                            </p>
+
+                                            <p class="!text-sm text-gray-400 dark:text-gray-400">
+                                                @lang('admin::app.leads.index.kanban.empty-list-description')
+                                            </p>
+                                        </div>
+
+                                        @if (bouncer()->hasPermission('leads.create'))
+                                            <a
+                                                :href="'{{ route('admin.leads.create') }}' + '?stage_id=' + stage.id"
+                                                class="secondary-button"
+                                            >
+                                                @lang('admin::app.leads.index.kanban.create-lead-btn')
+                                            </a>
+                                        @endif
+                                    </div>
+                                </div>
+                            </template>
+
+                            <!-- Lead Card -->
+                            <template #item="{ element, index }">
+                                {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.before') !!}
+
+                                <a
+                                    class="lead-item flex cursor-pointer flex-col gap-5 rounded-md border border-gray-100 bg-gray-50 p-2 dark:border-gray-400 dark:bg-gray-400"
+                                    :href="'{{ route('admin.leads.view', 'replaceId') }}'.replace('replaceId', element.id)"
+                                >
+                                    {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.header.before') !!}
+
+                                    <!-- Header -->
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex items-center gap-1">
+                                            <x-admin::avatar ::name="element.person.name" />
+                                  
+                                            <div class="flex flex-col gap-0.5">
+                                                <span class="text-xs font-medium">
+                                                    @{{ element.person.name }}
+                                                </span>
+
+                                                <span class="text-[10px] leading-normal">
+                                                    @{{ element.person.organization?.name }}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            class="group relative"
+                                            v-if="element.rotten_days > 0"
+                                        >
+                                            <span class="icon-rotten cursor-default text-xl text-rose-600"></span>
+
+                                            <div class="absolute -top-1 right-7 hidden w-max flex-col items-center group-hover:flex">
+                                                <span class="whitespace-no-wrap relative rounded-md bg-black px-4 py-2 text-xs leading-none text-white shadow-lg">
+                                                    @{{ "@lang('admin::app.leads.index.kanban.rotten-days', ['days' => 'replaceDays'])".replace('replaceDays', element.rotten_days) }}
+                                                </span>
+
+                                                <div class="absolute -right-1 top-2 h-3 w-3 rotate-45 bg-black"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.header.after') !!}
+
+                                    {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.title.before') !!}
+
+                                    <!-- Lead Title -->
+                                    <p class="text-xs font-medium">
+                                        @{{ element.title }}
+                                    </p>
+
+                                    {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.title.after') !!}
+
+                                    <div class="flex flex-wrap gap-1">
+                                        <div
+                                            class="flex items-center gap-1 rounded-xl bg-gray-200 px-2 py-1 text-xs font-medium dark:bg-gray-800 dark:text-white"
+                                            v-if="element.user"
+                                        >
+                                            <span class="icon-settings-user text-sm"></span>
+                                            
+                                            @{{ element.user.name }}
+                                        </div>
+
+                                        <div class="rounded-xl bg-gray-200 px-2 py-1 text-xs font-medium dark:bg-gray-800 dark:text-white">
+                                            @{{ element.formatted_lead_value }}
+                                        </div>
+
+                                        <div class="rounded-xl bg-gray-200 px-2 py-1 text-xs font-medium dark:bg-gray-800 dark:text-white">
+                                            @{{ element.source.name }}
+                                        </div>
+
+                                        <div class="rounded-xl bg-gray-200 px-2 py-1 text-xs font-medium dark:bg-gray-800 dark:text-white">
+                                            @{{ element.type.name }}
+                                        </div>
+
+                                        <!-- Tags -->
+                                        <template v-for="tag in element.tags">
+                                            {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.tag.before') !!}
+
+                                            <div
+                                                class="rounded-xl bg-gray-200 px-2 py-1 text-xs font-medium dark:bg-gray-800"
+                                                :style="{
+                                                    backgroundColor: tag.color,
+                                                    color: tagTextColor[tag.color]
+                                                }"
+                                            >
+                                                @{{ tag.name }}
+                                            </div>
+
+                                            {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.tag.after') !!}
+                                        </template>
+                                    </div>
+                                </a>
+
+                                {!! view_render_event('admin.leads.index.kanban.content.stage.body.card.after') !!}
+                            </template>
+                        </draggable>
+
+                        {!! view_render_event('admin.leads.index.kanban.content.stage.body.after') !!}
                     </div>
                 </div>
+
+                {!! view_render_event('admin.leads.index.kanban.content.after') !!}
             </div>
-        </div>
+        </template>
     </script>
 
-    <script type="text/x-template" id="kanban-component-tempalte">
-        <kanban-board :stages="stage_names" :blocks="leads" @update-block="updateLeadStage">
-            <div v-for="(stage, index) in stage_names" :slot="stage" :key="`stage-${stage}`">
-                <h2>
-                    @{{ stage }}
-                    <span class="float-right">@{{ totalCounts[stage] }}</span>
-                </h2>
+    <script type="module">
+        app.component('v-leads-kanban', {
+            template: '#v-leads-kanban-template',
 
-                @if (bouncer()->hasPermission('leads.create'))
-                    <a :href="'{{ route('admin.leads.create') }}' + '?stage_id=' + stages[index].id">
-                        {{ __('admin::app.leads.create-title') }}
-                    </a>
-                @endif
-            </div>
-
-            <div
-                v-for="lead in leads"
-                :slot="lead.id"
-                :key="`block-${lead.id}`"
-                class="lead-block"
-                :class="{ 'rotten': lead.rotten_days > 0 ? true : false }"
-            >
-
-                <div class="lead-title">@{{ lead.title }}</div>
-
-                <div class="icons">
-                    <a :href="'{{ route('admin.leads.view') }}/' + lead.id" class="icon eye-icon"></a>
-                    <i class="icon drag-icon"></i>
-                </div>
-
-                <div class="lead-person">
-                    <i class="icon avatar-dark-icon"></i>
-                        <a :href="`${personIndexUrl}?id[eq]=${lead.person_id}`">
-                            @{{ lead.person_name }}
-                        </a>
-                </div>
-
-                <div class="lead-cost">
-                    <i class="icon dollar-circle-icon"></i>@{{ lead.lead_value }}
-                </div>
-            </div>
-        </kanban-board>
-    </script>
-
-    <script>
-        Vue.component('kanban-filters', {
-            template: '#kanban-filters-tempalte',
-
-            data: function () {
+            data() {
                 return {
-                    debounce: [],
-                    columns: {
-                        'created_at': {
-                            'type' : 'date_range',
-                            'label' : "{{ trans('admin::app.datagrid.created_at') }}",
-                            'values' : [null, null],
-                            'filterable' : true
-                        },
-                    }
-                }
-            },
+                    available: {
+                        columns: @json($columns),
+                    },
 
-            mounted: function () {
-                EventBus.$on('updateFilter', data => {
-                    EventBus.$emit('updateKanbanFilter', data);
-                });
-            },
+                    applied: {
+                        filters: {
+                            columns: [],
+                        }
+                    },
 
-            methods: {
-                toggleSidebarFilter: function () {
-                    $('.sidebar-filter').toggleClass('show');
-                },
-            }
-        });
-
-        Vue.component('kanban-component', {
-
-            template: '#kanban-component-tempalte',
-
-            data: function () {
-                return {
                     stages: @json($pipeline->stages->toArray()),
 
-                    stage_pagination: {},
+                    stageLeads: {},
 
-                    leads: [],
+                    isLoading: true,
 
-                    debounce: null,
-
-                    totalCounts: {},
-
-                    personIndexUrl: "{{ route('admin.contacts.persons.index') }}",
-                }
+                    tagTextColor: {
+                        '#FEE2E2': '#DC2626',
+                        '#FFEDD5': '#EA580C',
+                        '#FEF3C7': '#D97706',
+                        '#FEF9C3': '#CA8A04',
+                        '#ECFCCB': '#65A30D',
+                        '#DCFCE7': '#16A34A',
+                    },
+                };
             },
 
             computed: {
-                stage_names: function() {
-                    return this.stages.map(stage => stage.name)
-                },
+                totalStagesAmount() {
+                    let totalAmount = 0;
 
-                blocks: function() {
-                    return this.leads;
+                    for (let [key, stage] of Object.entries(this.stageLeads)) {
+                        totalAmount += parseFloat(stage.lead_value);
+                    }
+
+                    return totalAmount;
                 }
             },
 
-            created: function () {
-                this.getLeads();
-
-                queueMicrotask(() => {
-                    $('#search-field').on('search keyup', ({target}) => {
-                        clearTimeout(this.debounce);
-
-                        this.debounce = setTimeout(() => {
-                            this.search(target.value)
-                        }, 2000);
-                    });
-                });
-            },
-
-            mounted: function () {
-                EventBus.$on('updateKanbanFilter', this.updateFilter);
-
-                var self = this;
-
-                $('.drag-inner-list').on('scroll', function() {
-                    if ($(this).scrollTop() + $(this).innerHeight() >= $(this)[0].scrollHeight) {
-                        var stage = self.getStageByName($(this).attr('data-status'));
-
-                        var pagination = self.stage_pagination[stage.id];
-
-                        if (! pagination.next) {
-                            return;
-                        }
-
-                        self.getLeads(false, '?page=' + pagination.next + '&pipeline_stage_id=' + stage.id);
-                    }
-                });
+            mounted () {
+                this.boot();
             },
 
             methods: {
-                getLeads: function (searchedKeyword, filterValues) {
-                    this.$root.pageLoaded = false;
+                /**
+                 * Initialization: This function checks for any previously saved filters in local storage and applies them as needed.
+                 *
+                 * @returns {void}
+                 */
+                 boot() {
+                    let kanbans = this.getKanbans();
 
-                    this.$http.get("{{ route('admin.leads.get', request('pipeline_id')) }}" + `${searchedKeyword ? `?search=${searchedKeyword}` : ''}${filterValues || ''}`)
-                        .then(response => {
-                            this.$root.pageLoaded = true;
+                    if (kanbans?.length) {
+                        const currentKanban = kanbans.find(({ src }) => src === this.src);
 
-                            this.$root.pageLoaded = true;
+                        if (currentKanban) {
+                            this.applied.filters = currentKanban.applied.filters;
 
-                            var totalCounts = {};
+                            this.get()
+                                .then(response => {
+                                    for (let [sortOrder, data] of Object.entries(response.data)) {
+                                        this.stageLeads[sortOrder] = data;
+                                    }
+                                });
 
-                            var self = this;
-
-                            this.stages.forEach(function(stage) {
-                                if (response.data[stage.id] !== undefined) {
-                                    totalCounts[stage.name] = response.data[stage.id]['total'];
-
-                                    let resLeads = response.data[stage.id]['leads']
-                                    self.leads = self.leads.concat(resLeads.filter(resLeads => self.leads.findIndex(lead => lead.id == resLeads.id) == -1))
-
-                                    self.stage_pagination[stage.id] = response.data[stage.id]['pagination'];
-                                } else {
-                                    totalCounts[stage.name] = self.totalCounts[stage.name];
-                                }
-                            })
-
-                            this.totalCounts = totalCounts;
-
-                            setTimeout(() => {
-                                this.toggleEmptyStateIcon();
-                            })
-                        })
-                        .catch(error => {
-                            this.$root.pageLoaded = true;
-                        });
-                },
-
-                getStageByName: function (stageName) {
-                    var stages = this.stages.filter(stage => stageName === stage.name)
-
-                    return stages[0];
-                },
-
-                updateLeadStage: function (id, stageName) {
-                    var stage = this.stages.filter(stage => stage.name === stageName);
-
-                    this.$http.put("{{ route('admin.leads.update') }}/" + id, {'lead_pipeline_stage_id': stage[0].id})
-                        .then(response => {
-                            window.flashMessages = [{'type': 'success', 'message': response.data.message}];
-
-                            this.$root.addFlashMessages();
-                        })
-                        .catch(error => {
-                            window.flashMessages = [{'type': 'error', 'message': error.response.data.message}];
-
-                            this.$root.addFlashMessages();
-                        });
-                },
-
-                search: function (searchedKeyword) {
-                    this.leads = [];
-                    this.getLeads(searchedKeyword);
-                },
-
-                updateFilter: function (data) {
-                    this.leads = [];
-                    let href = data.key ? `?${data.key}[${data.cond}]=${data.value}` : false;
-                    this.getLeads(false, href);
-                },
-
-                toggleEmptyStateIcon: function () {
-                    $('.empty-icon-container').remove();
-
-                    $('ul.drag-inner-list').each((index, item) => {
-                        if (! $(item).children('.drag-item').length) {
-                            $(item).append(`
-                                <div class='empty-icon-container disable-drag'>
-                                    <div class="icon-text-container">
-                                        <i class='icon empty-kanban-icon'></i>
-                                        <span>{{ __('admin::app.leads.no-lead') }}</span>
-                                    </div>
-                                </div>
-                            `)
+                            return;
                         }
+                    }
+
+                    this.get()
+                        .then(response => {
+                            for (let [sortOrder, data] of Object.entries(response.data)) {
+                                this.stageLeads[sortOrder] = data;
+                            }
+                        });
+                },
+
+                /**
+                 * Fetches the leads based on the applied filters.
+                 *
+                 * @param {object} requestedParams - The requested parameters.
+                 * @returns {Promise} The promise object representing the request.
+                 */
+                get(requestedParams = {}) {
+                    let params = {
+                        search: '',
+                        searchFields: '',
+                        pipeline_id: "{{ request('pipeline_id') }}",
+                        limit: 10,
+                    };
+
+                    this.applied.filters.columns.forEach((column) => {
+                        if (column.index === 'all') {
+                            if (! column.value.length) {
+                                return;
+                            }
+
+                            params['search'] += `title:${column.value.join(',')};`;
+                            params['searchFields'] += `title:like;`;
+
+                            return;
+                        }
+
+                        /**
+                         * If the column is a searchable dropdown, then we need to append the column value
+                         * with the column label. Otherwise, we can directly append the column value.
+                         */
+                        params['search'] += column.filterable_type === 'searchable_dropdown'
+                            ? `${column.index}:${column.value.map(option => option.value).join(',')};`
+                            : `${column.index}:${column.value.join(',')};`;
+
+                        params['searchFields'] += `${column.index}:${column.search_field};`;
                     });
-                }
+
+                    return this.$axios
+                        .get("{{ route('admin.leads.get') }}", {
+                            params: {
+                                ...params,
+
+                                ...requestedParams,
+                            }
+                        })
+                        .then(response => {
+                            this.isLoading = false;
+
+                            this.updateKanbans();
+
+                            return response;
+                        })
+                        .catch(error => {
+                            console.log(error)
+                        });
+                },
+
+                /**
+                 * Filters the leads based on the applied filters.
+                 *
+                 * @param {object} filters - The filters to be applied.
+                 * @returns {void}
+                 */
+                filter(filters) {
+                    this.applied.filters.columns = [
+                        ...(this.applied.filters.columns.filter((column) => column.index === 'all')),
+                        ...filters.columns,
+                    ];
+
+                    this.get()
+                        .then(response => {
+                            for (let [sortOrder, data] of Object.entries(response.data)) {
+                                this.stageLeads[sortOrder] = data;
+                            }
+                        });
+                },
+
+                /**
+                 * Searches the leads based on the applied filters.
+                 *
+                 * @param {object} filters - The filters to be applied.
+                 * @returns {void}
+                 */
+                search(filters) {
+                    this.applied.filters.columns = [
+                        ...(this.applied.filters.columns.filter((column) => column.index !== 'all')),
+                        ...filters.columns,
+                    ];
+
+                    this.get()
+                        .then(response => {
+                            for (let [sortOrder, data] of Object.entries(response.data)) {
+                                this.stageLeads[sortOrder] = data;
+                            }
+                        });
+                },
+
+                /**
+                 * Appends the leads to the stage.
+                 *
+                 * @param {object} params - The parameters to be appended.
+                 * @returns {void}
+                 */
+                append(params) {
+                    this.get(params)
+                        .then(response => {
+                            for (let [sortOrder, data] of Object.entries(response.data)) {
+                                if (! this.stageLeads[sortOrder]) {
+                                    this.stageLeads[sortOrder] = data;
+                                } else {
+                                    this.stageLeads[sortOrder].leads.data = this.stageLeads[sortOrder].leads.data.concat(data.leads.data);
+
+                                    this.stageLeads[sortOrder].leads.meta = data.leads.meta;
+                                }
+                            }
+                        });
+                },
+
+                /**
+                 * Updates the stage with the latest lead data.
+                 *
+                 * @param {object} stage - The stage object.
+                 * @param {object} event - The event object.
+                 * @returns {void}
+                 */
+                updateStage(stage, event) {
+                    if (event.moved) {
+                        return;
+                    }
+
+                    if (event.removed) {
+                        stage.lead_value = parseFloat(stage.lead_value) - parseFloat(event.removed.element.lead_value);
+
+                        this.stageLeads[stage.sort_order].leads.meta.total = this.stageLeads[stage.sort_order].leads.meta.total - 1;
+
+                        return;
+                    }
+
+                    stage.lead_value = parseFloat(stage.lead_value) + parseFloat(event.added.element.lead_value);
+
+                    this.stageLeads[stage.sort_order].leads.meta.total = this.stageLeads[stage.sort_order].leads.meta.total + 1;
+
+                    this.$axios
+                        .put("{{ route('admin.leads.stage.update', 'replace') }}".replace('replace', event.added.element.id), {
+                            'lead_pipeline_stage_id': stage.id
+                        })
+                        .then(response => {
+                            this.$emitter.emit('add-flash', { type: 'success', message: response.data.message });
+                        })
+                        .catch(error => {
+                            this.$emitter.emit('add-flash', { type: 'error', message: error.response.data.message });
+                        });
+                },
+
+                /**
+                 * Handles the scroll event on the stage leads.
+                 *
+                 * @param {object} stage - The stage object.
+                 * @param {object} event - The scroll event.
+                 * @returns {void}
+                 */
+                handleScroll(stage, event) {
+                    const bottom = event.target.scrollHeight - event.target.scrollTop === event.target.clientHeight;
+
+                    if (! bottom) {
+                        return;
+                    }
+
+                    if (this.stageLeads[stage.sort_order].leads.meta.current_page == this.stageLeads[stage.sort_order].leads.meta.last_page) {
+                        return;
+                    }
+
+                    this.append({
+                        pipeline_stage_id: stage.id,
+                        pipeline_id: stage.lead_pipeline_id,
+                        page: this.stageLeads[stage.sort_order].leads.meta.current_page + 1,
+                        limit: 10,
+                    });
+                },
+
+                //=======================================================================================
+                // Support for previous applied values in kanban's. All code is based on local storage.
+                //=======================================================================================
+
+                /**
+                 * Updates the kanban's stored in local storage with the latest data.
+                 *
+                 * @returns {void}
+                 */
+                 updateKanbans() {
+                    let kanbans = this.getKanbans();
+
+                    if (kanbans?.length) {
+                        const currentKanban = kanbans.find(({ src }) => src === this.src);
+
+                        if (currentKanban) {
+                            kanbans = kanbans.map(kanban => {
+                                if (kanban.src === this.src) {
+                                    return {
+                                        ...kanban,
+                                        requestCount: ++kanban.requestCount,
+                                        available: this.available,
+                                        applied: this.applied,
+                                    };
+                                }
+
+                                return kanban;
+                            });
+                        } else {
+                            kanbans.push(this.getKanbanInitialProperties());
+                        }
+                    } else {
+                        kanbans = [this.getKanbanInitialProperties()];
+                    }
+
+                    this.setKanbans(kanbans);
+                },
+
+                /**
+                 * Returns the initial properties for a kanban.
+                 *
+                 * @returns {object} Initial properties for a kanban.
+                 */
+                getKanbanInitialProperties() {
+                    return {
+                        src: this.src,
+                        requestCount: 0,
+                        available: this.available,
+                        applied: this.applied,
+                    };
+                },
+
+                /**
+                 * Returns the storage key for kanban's in local storage.
+                 *
+                 * @returns {string} Storage key for kanban's.
+                 */
+                getKanbansStorageKey() {
+                    return 'kanbans';
+                },
+
+                /**
+                 * Retrieves the kanban's stored in local storage.
+                 *
+                 * @returns {Array} Kanban's stored in local storage.
+                 */
+                getKanbans() {
+                    let kanbans = localStorage.getItem(
+                        this.getKanbansStorageKey()
+                    );
+
+                    return JSON.parse(kanbans) ?? [];
+                },
+
+                /**
+                 * Sets the kanban's in local storage.
+                 *
+                 * @param {Array} kanbans - Kanban's to be stored in local storage.
+                 * @returns {void}
+                 */
+                setKanbans(kanbans) {
+                    localStorage.setItem(
+                        this.getKanbansStorageKey(),
+                        JSON.stringify(kanbans)
+                    );
+                },
             }
         });
     </script>
-@endpush
+@endPushOnce

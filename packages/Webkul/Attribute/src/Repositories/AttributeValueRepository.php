@@ -2,69 +2,60 @@
 
 namespace Webkul\Attribute\Repositories;
 
+use Carbon\Carbon;
 use Illuminate\Container\Container;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Webkul\Attribute\Contracts\AttributeValue;
 use Webkul\Core\Eloquent\Repository;
 
 class AttributeValueRepository extends Repository
 {
     /**
-     * AttributeRepository object
-     *
-     * @var \Webkul\Attribute\Repositories\AttributeRepository
-     */
-    protected $attributeRepository;
-
-    /**
      * Create a new repository instance.
      *
-     * @param  \Webkul\Attribute\Repositories\AttributeRepository $attributeRepository
-     * @param  \Illuminate\Container\Container  $container
      * @return void
      */
     public function __construct(
-        AttributeRepository $attributeRepository,
+        protected AttributeRepository $attributeRepository,
         Container $container
-    )
-    {
-        $this->attributeRepository = $attributeRepository;
-
+    ) {
         parent::__construct($container);
     }
 
     /**
-     * Specify Model class name
+     * Specify model class name.
      *
      * @return mixed
      */
-    function model()
+    public function model()
     {
-        return 'Webkul\Attribute\Contracts\AttributeValue';
+        return AttributeValue::class;
     }
 
     /**
-     * @param array  $data
-     * @param int  $entityId
-     * @return void
+     * Save attribute value.
      */
-    public function save(array $data, $entityId)
+    public function save(array $data, $attributes = []): void
     {
-        $conditions = ['entity_type' => $data['entity_type']];
+        if (empty($attributes)) {
+            $conditions = ['entity_type' => $data['entity_type']];
 
-        if (isset($data['quick_add'])) {
-            $conditions['quick_add'] = 1;
+            if (isset($data['quick_add'])) {
+                $conditions['quick_add'] = 1;
+            }
+
+            $attributes = $this->attributeRepository->where($conditions)->get();
         }
-        
-        $attributes = $this->attributeRepository->findWhere($conditions);
 
         foreach ($attributes as $attribute) {
             $typeColumn = $this->model::$attributeTypeFields[$attribute->type];
-            
+
             if ($attribute->type === 'boolean') {
                 $data[$attribute->code] = isset($data[$attribute->code]) && $data[$attribute->code] ? 1 : 0;
             }
 
-            if (! isset($data[$attribute->code])) {
+            if (! array_key_exists($attribute->code, $data)) {
                 continue;
             }
 
@@ -88,21 +79,21 @@ class AttributeValueRepository extends Repository
             }
 
             if ($attribute->type === 'image' || $attribute->type === 'file') {
-                $data[$attribute->code] = gettype($data[$attribute->code]) === 'object'
-                    ? request()->file($attribute->code)->store($data['entity_type'] . '/' . $entityId)
+                $data[$attribute->code] = $data[$attribute->code] instanceof UploadedFile
+                    ? $data[$attribute->code]->store($data['entity_type'].'/'.$data['entity_id'])
                     : null;
             }
 
             $attributeValue = $this->findOneWhere([
-                'entity_id'    => $entityId,
                 'entity_type'  => $data['entity_type'],
+                'entity_id'    => $data['entity_id'],
                 'attribute_id' => $attribute->id,
             ]);
 
             if (! $attributeValue) {
                 $this->create([
-                    'entity_id'    => $entityId,
                     'entity_type'  => $data['entity_type'],
+                    'entity_id'    => $data['entity_id'],
                     'attribute_id' => $attribute->id,
                     $typeColumn    => $data[$attribute->code],
                 ]);
@@ -112,18 +103,22 @@ class AttributeValueRepository extends Repository
                 ], $attributeValue->id);
 
                 if ($attribute->type == 'image' || $attribute->type == 'file') {
-                    Storage::delete($attributeValue->text_value);
+                    if ($attributeValue->text_value) {
+                        Storage::delete($attributeValue->text_value);
+                    }
                 }
             }
         }
     }
 
     /**
+     * Is value unique.
+     *
      * @param  int  $entityId
      * @param  string  $entityType
      * @param  \Webkul\Attribute\Contracts\Attribute  $attribute
      * @param  string  $value
-     * @return boolean
+     * @return bool
      */
     public function isValueUnique($entityId, $entityType, $attribute, $value)
     {
@@ -132,8 +127,11 @@ class AttributeValueRepository extends Repository
             ->where('entity_type', $entityType)
             ->where('entity_id', '!=', $entityId);
 
+        /**
+         * If the attribute type is email or phone, check the JSON value.
+         */
         if (in_array($attribute->type, ['email', 'phone'])) {
-            $query->where($this->model::$attributeTypeFields[$attribute->type], 'like', "%{$value}%");
+            $query->whereJsonContains($this->model::$attributeTypeFields[$attribute->type], [['value' => $value]]);
         } else {
             $query->where($this->model::$attributeTypeFields[$attribute->type], $value);
         }
@@ -143,7 +141,7 @@ class AttributeValueRepository extends Repository
 
     /**
      * Removed null values from email and phone fields.
-     * 
+     *
      * @param  array  $data
      * @return array
      */
@@ -156,5 +154,110 @@ class AttributeValueRepository extends Repository
         }
 
         return $data;
+    }
+
+    /**
+     * Replace placeholders with values
+     */
+    public function getAttributeLabel(mixed $value, mixed $attribute)
+    {
+        switch ($attribute?->type) {
+            case 'price':
+                $label = core()->formatBasePrice($value);
+
+                break;
+
+            case 'boolean':
+                $label = $value ? 'Yes' : 'No';
+
+                break;
+
+            case 'select':
+            case 'radio':
+            case 'lookup':
+                if ($attribute->lookup_type) {
+                    $option = $this->attributeRepository->getLookUpEntity($attribute->lookup_type, $value);
+                } else {
+                    $option = $attribute->options->where('id', $value)->first();
+                }
+
+                $label = $option?->name;
+
+                break;
+
+            case 'multiselect':
+            case 'checkbox':
+                if ($attribute->lookup_type) {
+                    $options = $this->attributeRepository->getLookUpEntity($attribute->lookup_type, explode(',', $value));
+                } else {
+                    $options = $attribute->options->whereIn('id', explode(',', $value));
+                }
+
+                $optionsLabels = [];
+
+                foreach ($options as $key => $option) {
+                    $optionsLabels[] = $option->name;
+                }
+
+                $label = implode(', ', $optionsLabels);
+
+                break;
+
+            case 'email':
+            case 'phone':
+                if (! is_array($value)) {
+                    break;
+                }
+
+                $optionsLabels = [];
+
+                foreach ($value as $item) {
+                    $optionsLabels[] = $item['value'].' ('.$item['label'].')';
+                }
+
+                $label = implode(', ', $optionsLabels);
+
+                break;
+
+            case 'address':
+                if (
+                    ! $value
+                    || ! count(array_filter($value))
+                ) {
+                    break;
+                }
+
+                $label = $value['address'].'<br>'
+                    .$value['postcode'].'  '.$value['city'].'<br>'
+                    .core()->state_name($value['state']).'<br>'
+                    .core()->country_name($value['country']).'<br>';
+
+                break;
+
+            case 'date':
+                if ($value) {
+                    $label = Carbon::parse($value)->format('D M d, Y');
+                } else {
+                    $label = null;
+                }
+
+                break;
+
+            case 'datetime':
+                if ($value) {
+                    $label = Carbon::parse($value)->format('D M d, Y H:i A');
+                } else {
+                    $label = null;
+                }
+
+                break;
+
+            default:
+                $label = $value;
+
+                break;
+        }
+
+        return $label ?? null;
     }
 }

@@ -2,72 +2,47 @@
 
 namespace Webkul\Admin\Http\Controllers\Mail;
 
+use Exception;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Mail;
-use Webkul\Email\Mails\Email;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\View\View;
+use Webkul\Admin\DataGrids\Mail\EmailDataGrid;
 use Webkul\Admin\Http\Controllers\Controller;
-use Webkul\Lead\Repositories\LeadRepository;
-use Webkul\Email\Repositories\EmailRepository;
+use Webkul\Admin\Http\Requests\MassDestroyRequest;
+use Webkul\Admin\Http\Requests\MassUpdateRequest;
+use Webkul\Admin\Http\Resources\EmailResource;
+use Webkul\Email\InboundEmailProcessor\Contracts\InboundEmailProcessor;
+use Webkul\Email\Mails\Email;
 use Webkul\Email\Repositories\AttachmentRepository;
+use Webkul\Email\Repositories\EmailRepository;
+use Webkul\Lead\Repositories\LeadRepository;
 
 class EmailController extends Controller
 {
     /**
-     * LeadRepository object
-     *
-     * @var \Webkul\Email\Repositories\LeadRepository
-     */
-    protected $leadRepository;
-
-    /**
-     * EmailRepository object
-     *
-     * @var \Webkul\Email\Repositories\EmailRepository
-     */
-    protected $emailRepository;
-
-    /**
-     * AttachmentRepository object
-     *
-     * @var \Webkul\Email\Repositories\AttachmentRepository
-     */
-    protected $attachmentRepository;
-
-    /**
      * Create a new controller instance.
-     *
-     * @param \Webkul\Lead\Repositories\LeadRepository  $leadRepository
-     * @param \Webkul\Email\Repositories\EmailRepository  $emailRepository
-     * @param \Webkul\Email\Repositories\AttachmentRepository  $attachmentRepository
      *
      * @return void
      */
     public function __construct(
-        LeadRepository $leadRepository,
-        EmailRepository $emailRepository,
-        AttachmentRepository $attachmentRepository
-    )
-    {
-        $this->leadRepository = $leadRepository;
-
-        $this->emailRepository = $emailRepository;
-
-        $this->attachmentRepository = $attachmentRepository;
-    }
+        protected LeadRepository $leadRepository,
+        protected EmailRepository $emailRepository,
+        protected AttachmentRepository $attachmentRepository
+    ) {}
 
     /**
      * Display a listing of the resource.
-     *
-     * @return \Illuminate\View\View
      */
-    public function index()
+    public function index(): View|JsonResponse|RedirectResponse
     {
         if (! request('route')) {
             return redirect()->route('admin.mail.index', ['route' => 'inbox']);
         }
 
-        if (! bouncer()->hasPermission('mail.' . request('route'))) {
+        if (! bouncer()->hasPermission('mail.'.request('route'))) {
             abort(401, 'This action is unauthorized');
         }
 
@@ -77,7 +52,7 @@ class EmailController extends Controller
 
             default:
                 if (request()->ajax()) {
-                    return app(\Webkul\Admin\DataGrids\Mail\EmailDataGrid::class)->toJson();
+                    return datagrid(EmailDataGrid::class)->process();
                 }
 
                 return view('admin::mail.index');
@@ -92,38 +67,31 @@ class EmailController extends Controller
     public function view()
     {
         $email = $this->emailRepository
-            ->with(['emails', 'attachments', 'emails.attachments', 'lead', 'person'])
+            ->with(['emails', 'attachments', 'emails.attachments', 'lead', 'lead.person', 'lead.tags', 'lead.source', 'lead.type', 'person'])
             ->findOrFail(request('id'));
 
-        $currentUser = auth()->guard('user')->user();
-        
-        if ($currentUser->view_permission == 'individual') {            
-            $results = $this->leadRepository->findWhere([
-                ['id', '=', $email->lead_id],
-                ['user_id', '=', $currentUser->id],
-            ]);
-        } elseif ($currentUser->view_permission == 'group') {
-            $userIds = app('\Webkul\User\Repositories\UserRepository')->getCurrentUserGroupsUserIds();
-
+        if ($userIds = bouncer()->getAuthorizedUserIds()) {
             $results = $this->leadRepository->findWhere([
                 ['id', '=', $email->lead_id],
                 ['user_id', 'IN', $userIds],
             ]);
-        } elseif ($currentUser->view_permission == 'global') {
+        } else {
             $results = $this->leadRepository->findWhere([
                 ['id', '=', $email->lead_id],
             ]);
         }
-           
+
         if (empty($results->toArray())) {
             unset($email->lead_id);
         }
-        
+
         if (request('route') == 'draft') {
-            return view('admin::mail.compose', compact('email'));
-        } else {
-            return view('admin::mail.view', compact('email'));
+            return response()->json([
+                'data' => new EmailResource($email),
+            ]);
         }
+
+        return view('admin::mail.view', compact('email'));
     }
 
     /**
@@ -134,45 +102,34 @@ class EmailController extends Controller
     public function store()
     {
         $this->validate(request(), [
-            'reply_to' => 'required|array|min:1',
-            'reply'    => 'required',
+            'reply_to'   => 'required|array|min:1',
+            'reply_to.*' => 'email',
+            'reply'      => 'required',
         ]);
 
         Event::dispatch('email.create.before');
 
-        $uniqueId = time() . '@' . config('mail.domain');
-
-        $referenceIds = [];
-
-        if ($parentId = request('parent_id')) {
-            $parent = $this->emailRepository->findOrFail($parentId);
-
-            $referenceIds = $parent->reference_ids ?? [];
-        }
-
-        $email = $this->emailRepository->create(array_merge(request()->all(), [
-            'source'        => 'web',
-            'from'          => config('mail.from.address'),
-            'user_type'     => 'admin',
-            'folders'       => request('is_draft') ? ['draft'] : ['outbox'],
-            'name'          => auth()->guard('user')->user()->name,
-            'unique_id'     => $uniqueId,
-            'message_id'    => $uniqueId,
-            'reference_ids' => array_merge($referenceIds, [$uniqueId]),
-            'user_id'       => auth()->guard('user')->user()->id,
-        ]));
+        $email = $this->emailRepository->create(request()->all());
 
         if (! request('is_draft')) {
             try {
                 Mail::send(new Email($email));
 
                 $this->emailRepository->update([
-                    'folders' => ['inbox', 'sent']
+                    'folders' => ['sent'],
                 ], $email->id);
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
         }
 
         Event::dispatch('email.create.after', $email);
+
+        if (request()->ajax()) {
+            return response()->json([
+                'data'    => new EmailResource($email),
+                'message' => trans('admin::app.mail.create-success'),
+            ]);
+        }
 
         if (request('is_draft')) {
             session()->flash('success', trans('admin::app.mail.saved-to-draft'));
@@ -182,7 +139,7 @@ class EmailController extends Controller
 
         session()->flash('success', trans('admin::app.mail.create-success'));
 
-        return redirect()->route('admin.mail.index', ['route'   => 'inbox']);
+        return redirect()->route('admin.mail.index', ['route'   => 'sent']);
     }
 
     /**
@@ -210,9 +167,10 @@ class EmailController extends Controller
                 Mail::send(new Email($email));
 
                 $this->emailRepository->update([
-                    'folders' => ['inbox', 'sent']
+                    'folders' => ['inbox', 'sent'],
                 ], $email->id);
-            } catch (\Exception $e) {}
+            } catch (\Exception $e) {
+            }
         }
 
         if (! is_null(request('is_draft'))) {
@@ -228,36 +186,25 @@ class EmailController extends Controller
         }
 
         if (request()->ajax()) {
-            $response = [
+            return response()->json([
+                'data'    => new EmailResource($email->refresh()),
                 'message' => trans('admin::app.mail.update-success'),
-            ];
-
-            if (request('lead_id')) {
-                $response['html'] = view('admin::common.custom-attributes.view', [
-                    'customAttributes' => app('Webkul\Attribute\Repositories\AttributeRepository')->findWhere([
-                        'entity_type' => 'leads',
-                    ]),
-                    'entity'           => $this->leadRepository->find(request('lead_id')),
-                ])->render();
-            }
-
-            return response()->json($response);
-        } else {
-            session()->flash('success', trans('admin::app.mail.update-success'));
-
-            return redirect()->back();
-
+            ]);
         }
+
+        session()->flash('success', trans('admin::app.mail.update-success'));
+
+        return redirect()->back();
     }
 
     /**
-     * Run process inbound parse email
+     * Run process inbound parse email.
      *
      * @return \Illuminate\Http\Response
      */
-    public function inboundParse()
+    public function inboundParse(InboundEmailProcessor $inboundEmailProcessor)
     {
-        $this->emailRepository->processInboundParseMail(request('email'));
+        $inboundEmailProcessor->processMessage(request('email'));
 
         return response()->json([], 200);
     }
@@ -272,43 +219,52 @@ class EmailController extends Controller
     {
         $attachment = $this->attachmentRepository->findOrFail($id);
 
-        return Storage::download($attachment->path);
+        try {
+            return Storage::download($attachment->path);
+        } catch (\Exception $e) {
+            session()->flash('error', $e->getMessage());
+
+            return redirect()->back();
+        }
     }
 
     /**
      * Mass Update the specified resources.
-     *
-     * @return \Illuminate\Http\Response
      */
-    public function massUpdate()
+    public function massUpdate(MassUpdateRequest $massUpdateRequest): JsonResponse
     {
-        foreach (request('rows') as $emailId) {
-            Event::dispatch('email.update.before', $emailId);
+        $emails = $this->emailRepository->findWhereIn('id', $massUpdateRequest->input('indices'));
 
-            $this->emailRepository->update([
-                'folders' => request('folders'),
-            ], $emailId);
+        try {
+            foreach ($emails as $email) {
+                Event::dispatch('email.update.before', $email->id);
 
-            Event::dispatch('email.update.after', $emailId);
+                $this->emailRepository->update([
+                    'folders' => request('folders'),
+                ], $email->id);
+
+                Event::dispatch('email.update.after', $email->id);
+            }
+
+            return response()->json([
+                'message' => trans('admin::app.mail.mass-update-success'),
+            ]);
+        } catch (Exception) {
+            return response()->json([
+                'message' => trans('admin::app.mail.mass-update-success'),
+            ], 400);
         }
-
-        return response()->json([
-            'message' => trans('admin::app.mail.mass-update-success'),
-        ]);
     }
 
-    /*
+    /**
      * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
      */
-    public function destroy($id)
+    public function destroy(int $id): JsonResponse|RedirectResponse
     {
         $email = $this->emailRepository->findOrFail($id);
 
         try {
-            Event::dispatch('email.' . request('type') . '.before', $id);
+            Event::dispatch('email.'.request('type').'.before', $id);
 
             $parentId = $email->parent_id;
 
@@ -320,57 +276,61 @@ class EmailController extends Controller
                 $this->emailRepository->delete($id);
             }
 
-            Event::dispatch('email.' . request('type') . '.after', $id);
+            Event::dispatch('email.'.request('type').'.after', $id);
 
             if (request()->ajax()) {
                 return response()->json([
                     'message' => trans('admin::app.mail.delete-success'),
                 ], 200);
-            } else {
-                session()->flash('success', trans('admin::app.mail.delete-success'));
-
-                if ($parentId) {
-                    return redirect()->back();
-                } else {
-                    return redirect()->route('admin.mail.index', ['route' => 'inbox']);
-                }
             }
-        } catch(\Exception $exception) {
+
+            session()->flash('success', trans('admin::app.mail.delete-success'));
+
+            if ($parentId) {
+                return redirect()->back();
+            }
+
+            return redirect()->route('admin.mail.index', ['route' => 'inbox']);
+        } catch (\Exception $exception) {
             if (request()->ajax()) {
                 return response()->json([
                     'message' => trans('admin::app.mail.delete-failed'),
                 ], 400);
-            } else {
-                session()->flash('error', trans('admin::app.mail.delete-failed'));
-
-                return redirect()->back();
             }
+
+            session()->flash('error', trans('admin::app.mail.delete-failed'));
+
+            return redirect()->back();
         }
     }
 
     /**
      * Mass Delete the specified resources.
-     *
-     * @return \Illuminate\Http\Response
      */
-    public function massDestroy()
+    public function massDestroy(MassDestroyRequest $massDestroyRequest): JsonResponse
     {
-        foreach (request('rows') as $emailId) {
-            Event::dispatch('email.' . request('type') . '.before', $emailId);
+        $mails = $this->emailRepository->findWhereIn('id', $massDestroyRequest->input('indices'));
 
-            if (request('type') == 'trash') {
-                $this->emailRepository->update([
-                    'folders' => ['trash'],
-                ], $emailId);
-            } else {
-                $this->emailRepository->delete($emailId);
+        try {
+            foreach ($mails as $email) {
+                Event::dispatch('email.'.$massDestroyRequest->input('type').'.before', $email->id);
+
+                if ($massDestroyRequest->input('type') == 'trash') {
+                    $this->emailRepository->update(['folders' => ['trash']], $email->id);
+                } else {
+                    $this->emailRepository->delete($email->id);
+                }
+
+                Event::dispatch('email.'.$massDestroyRequest->input('type').'.after', $email->id);
             }
 
-            Event::dispatch('email.' . request('type') . '.after', $emailId);
+            return response()->json([
+                'message' => trans('admin::app.mail.delete-success'),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => trans('admin::app.mail.delete-success'),
+            ]);
         }
-
-        return response()->json([
-            'message' => trans('admin::app.mail.destroy-success'),
-        ]);
     }
 }

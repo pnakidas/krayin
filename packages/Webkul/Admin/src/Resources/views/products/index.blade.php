@@ -1,29 +1,45 @@
-@extends('admin::layouts.master')
+<x-admin::layouts>
+    <x-slot:title>
+        @lang('admin::app.products.index.title')
+    </x-slot>
 
-@section('page_title')
-    {{ __('admin::app.products.title') }}
-@stop
+    <div class="flex flex-col gap-4">
+        <div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+            <div class="flex flex-col gap-2">
+                <!-- Breadcrumbs -->
+                <x-admin::breadcrumbs name="products" />
 
-@section('content-wrapper')
-    <div class="content full-page">
-        <table-component data-src="{{ route('admin.products.index') }}">
-            <template v-slot:table-header>
-                <h1>
-                    {!! view_render_event('admin.products.index.header.before') !!}
+                <div class="text-xl font-bold dark:text-white">
+                    @lang('admin::app.products.index.title')
+                </div>
+            </div>
 
-                    {{ Breadcrumbs::render('products') }}
+            <div class="flex items-center gap-x-2.5">
+                {!! view_render_event('admin.products.index.create_button.before') !!}
 
-                    {{ __('admin::app.products.title') }}
+                <!-- Create button for Product -->
+                @if (bouncer()->hasPermission('products.create'))
+                    <div class="flex items-center gap-x-2.5">
+                        <a
+                            href="{{ route('admin.products.create') }}"
+                            class="primary-button"
+                        >
+                            @lang('admin::app.products.index.create-btn')
+                        </a>
+                    </div>
+                @endif
 
-                    {!! view_render_event('admin.products.index.header.after') !!}
-                </h1>
-            </template>
+                {!! view_render_event('admin.products.index.create_button.after') !!}
+            </div>
+        </div>
 
-            @if (bouncer()->hasPermission('products.create'))
-                <template v-slot:table-action>
-                    <a href="{{ route('admin.products.create') }}" class="btn btn-md btn-primary">{{ __('admin::app.products.create-title') }}</a>
-                </template>
-            @endif
-        <table-component>
+        {!! view_render_event('admin.products.index.datagrid.before') !!}
+
+        <x-admin::datagrid :src="route('admin.products.index')">
+            <!-- DataGrid Shimmer -->
+            <x-admin::shimmer.datagrid />
+        </x-admin::datagrid>
+
+        {!! view_render_event('admin.products.index.datagrid.after') !!}
     </div>
-@stop
+</x-admin::layouts>

@@ -9,26 +9,14 @@ use Webkul\Core\Eloquent\Repository;
 class AttributeRepository extends Repository
 {
     /**
-     * AttributeOptionRepository object
-     *
-     * @var \Webkul\Attribute\Repositories\AttributeOptionRepository
-     */
-    protected $attributeOptionRepository;
-
-    /**
      * Create a new repository instance.
      *
-     * @param  \Webkul\Attribute\Repositories\AttributeOptionRepository  $attributeOptionRepository
-     * @param  \Illuminate\Container\Container  $container
      * @return void
      */
     public function __construct(
-        AttributeOptionRepository $attributeOptionRepository,
+        protected AttributeOptionRepository $attributeOptionRepository,
         Container $container
-    )
-    {
-        $this->attributeOptionRepository = $attributeOptionRepository;
-
+    ) {
         parent::__construct($container);
     }
 
@@ -37,13 +25,12 @@ class AttributeRepository extends Repository
      *
      * @return mixed
      */
-    function model()
+    public function model()
     {
         return 'Webkul\Attribute\Contracts\Attribute';
     }
 
     /**
-     * @param  array  $data
      * @return \Webkul\Attribute\Contracts\Attribute
      */
     public function create(array $data)
@@ -58,7 +45,7 @@ class AttributeRepository extends Repository
             foreach ($options as $optionInputs) {
                 $this->attributeOptionRepository->create(array_merge([
                     'attribute_id' => $attribute->id,
-                    'sort_order'  => $sortOrder++,
+                    'sort_order'   => $sortOrder++,
                 ], $optionInputs));
             }
         }
@@ -67,42 +54,40 @@ class AttributeRepository extends Repository
     }
 
     /**
-     * @param  array  $data
-     * @param  int $id
+     * @param  int  $id
      * @param  string  $attribute
      * @return \Webkul\Attribute\Contracts\Attribute
      */
-    public function update(array $data, $id, $attribute = "id")
+    public function update(array $data, $id, $attribute = 'id')
     {
         $attribute = $this->find($id);
 
         $attribute->update($data);
 
-        $previousOptionIds = $attribute->options()->pluck('id');
-
-        if (in_array($attribute->type, ['select', 'multiselect', 'checkbox']) && isset($data['options'])) {
-            $sortOrder = 1;
-
-            foreach ($data['options'] as $optionId => $optionInputs) {
-                if (Str::contains($optionId, 'option_')) {
-                    $this->attributeOptionRepository->create(array_merge([
-                        'attribute_id' => $attribute->id,
-                        'sort_order'   => $sortOrder++,
-                    ], $optionInputs));
-                } else {
-                    if (is_numeric($index = $previousOptionIds->search($optionId))) {
-                        $previousOptionIds->forget($index);
-                    }
-
-                    $this->attributeOptionRepository->update(array_merge([
-                        'sort_order' => $sortOrder++,
-                    ], $optionInputs), $optionId);
-                }
-            }
+        if (! in_array($attribute->type, ['select', 'multiselect', 'checkbox'])) {
+            return $attribute;
         }
 
-        foreach ($previousOptionIds as $optionId) {
-            $this->attributeOptionRepository->delete($optionId);
+        if (! isset($data['options'])) {
+            return $attribute;
+        }
+
+        foreach ($data['options'] as $optionId => $optionInputs) {
+            $isNew = $optionInputs['isNew'] == 'true';
+
+            if ($isNew) {
+                $this->attributeOptionRepository->create(array_merge([
+                    'attribute_id' => $attribute->id,
+                ], $optionInputs));
+            } else {
+                $isDelete = $optionInputs['isDelete'] == 'true';
+
+                if ($isDelete) {
+                    $this->attributeOptionRepository->delete($optionId);
+                } else {
+                    $this->attributeOptionRepository->update($optionInputs, $optionId);
+                }
+            }
         }
 
         return $attribute;
@@ -124,27 +109,43 @@ class AttributeRepository extends Repository
     }
 
     /**
-     * @param  integer  $lookup
+     * @param  int  $lookup
      * @param  string  $query
      * @param  array  $columns
      * @return array
      */
     public function getLookUpOptions($lookup, $query = '', $columns = [])
     {
-        $lookup = config('attribute_lookups.' . $lookup);
+        $lookup = config('attribute_lookups.'.$lookup);
 
         if (! count($columns)) {
-            $columns = [($lookup['value_column'] ?? 'id') . ' as id' , ($lookup['label_column'] ?? 'name') . ' as name'];
+            $columns = [($lookup['value_column'] ?? 'id').' as id', ($lookup['label_column'] ?? 'name').' as name'];
+        }
+
+        if (Str::contains($lookup['repository'], 'UserRepository')) {
+            $userRepository = app($lookup['repository'])->where('status', 1);
+
+            $currentUser = auth()->guard('user')->user();
+
+            if ($currentUser?->view_permission === 'group') {
+                return $userRepository->leftJoin('user_groups', 'users.id', '=', 'user_groups.user_id')
+                    ->where('users.name', 'like', '%'.urldecode($query).'%')
+                    ->get();
+            } elseif ($currentUser?->view_permission === 'individual') {
+                return $userRepository->where('users.id', $currentUser->id);
+            }
+
+            return $userRepository->where('users.name', 'like', '%'.urldecode($query).'%')->get();
         }
 
         return app($lookup['repository'])->findWhere([
-            [$lookup['label_column'] ?? 'name', 'like', '%' . urldecode($query) . '%']
+            [$lookup['label_column'] ?? 'name', 'like', '%'.urldecode($query).'%'],
         ], $columns);
     }
 
     /**
      * @param  string  $lookup
-     * @param  integer|array  $entityId
+     * @param  int|array  $entityId
      * @param  array  $columns
      * @return mixed
      */
@@ -154,10 +155,10 @@ class AttributeRepository extends Repository
             return;
         }
 
-        $lookup = config('attribute_lookups.' . $lookup);
+        $lookup = config('attribute_lookups.'.$lookup);
 
         if (! count($columns)) {
-            $columns = [($lookup['value_column'] ?? 'id') . ' as id' , ($lookup['label_column'] ?? 'name') . ' as name'];
+            $columns = [($lookup['value_column'] ?? 'id').' as id', ($lookup['label_column'] ?? 'name').' as name'];
         }
 
         if (is_array($entityId)) {
